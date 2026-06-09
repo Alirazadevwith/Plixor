@@ -82,6 +82,9 @@ const Sections = () => {
         semester: "",
       });
     },
+    onError: (error) => {
+      alert(error.response?.data?.detail || "Failed to add student. Please check all fields.");
+    },
   });
 
   const deleteStudentMutation = useMutation({

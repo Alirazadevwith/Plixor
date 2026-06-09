@@ -111,7 +111,14 @@ const Results = () => {
                   {submissions.map((sub) => (
                     <tr key={sub.id} className="hover:bg-white/5 transition-colors">
                       <td className="py-3.5 px-4 font-mono text-white">
-                        {sub.student_id.substring(0, 8)}...
+                        {sub.student ? (
+                          <div className="flex flex-col">
+                            <span>{sub.student.roll_number}</span>
+                            <span className="text-xs text-[#94a3b8]">{sub.student.user?.full_name}</span>
+                          </div>
+                        ) : (
+                          `${sub.student_id.substring(0, 8)}...`
+                        )}
                       </td>
                       <td className="py-3.5 px-4 text-[#94a3b8]">
                         {new Date(sub.started_at).toLocaleString()}

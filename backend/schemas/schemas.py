@@ -202,6 +202,7 @@ class SubmissionResponse(BaseModel):
     submitted_at: Optional[datetime] = None
     status: SubmissionStatus
     total_score: Optional[float] = None
+    student: Optional[StudentResponse] = None
 
     model_config = {"from_attributes": True}
 

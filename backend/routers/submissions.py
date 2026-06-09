@@ -302,7 +302,11 @@ async def get_exam_submissions(
     if not exam or (current_user.role != UserRole.admin and exam.teacher_id != current_user.id):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
-    subs_result = await db.execute(select(Submission).where(Submission.exam_id == exam_id))
+    subs_result = await db.execute(
+        select(Submission)
+        .where(Submission.exam_id == exam_id)
+        .options(selectinload(Submission.student).selectinload(Student.user))
+    )
     return list(subs_result.scalars().all())
 
 

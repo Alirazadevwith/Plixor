@@ -9,6 +9,13 @@ export default defineConfig({
     include: /src\/.*\.[tj]sx?$/,
     exclude: [],
   },
+  optimizeDeps: {
+    esbuildOptions: {
+      loader: {
+        ".js": "jsx",
+      },
+    },
+  },
   server: {
     port: 5173,
     host: true,

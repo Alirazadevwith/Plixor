@@ -92,7 +92,7 @@ async def get_available_exams(
     student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
     student = student_result.scalar_one_or_none()
     if not student:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student profile not found")
+        return []
 
     now = datetime.now(timezone.utc)
     result = await db.execute(
