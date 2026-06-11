@@ -180,6 +180,7 @@ class Submission(Base):
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
     browser_info: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     device_info: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    warning_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
 
     exam: Mapped["Exam"] = relationship()
     student: Mapped["Student"] = relationship()

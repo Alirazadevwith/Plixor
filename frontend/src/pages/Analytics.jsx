@@ -2,15 +2,27 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import api from "../api/api";
-import {
-  FileSpreadsheet,
-  Download,
-  AlertTriangle,
-  Activity,
-  Award,
-  Users,
-  Eye,
-} from "lucide-react";
+
+const StatCard = ({ label, value, color, icon }) => (
+  <div style={{
+    background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8,
+    boxShadow: "0 1px 3px rgba(0,0,0,0.08)", padding: "20px 24px",
+    display: "flex", alignItems: "center", justifyContent: "space-between",
+  }}>
+    <div>
+      <div style={{ fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", color: "#718096", marginBottom: 8 }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: color || "#1A202C" }}>{value}</div>
+    </div>
+    <div style={{
+      width: 48, height: 48, borderRadius: 10, background: color + "15",
+      display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
+    }}>
+      {icon}
+    </div>
+  </div>
+);
 
 const Analytics = () => {
   const { id: examId } = useParams();
@@ -40,10 +52,7 @@ const Analytics = () => {
       const url = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute(
-        "download",
-        `exam_${examId}_results.${format === "excel" ? "xlsx" : "csv"}`
-      );
+      link.setAttribute("download", `exam_${examId}_results.${format === "excel" ? "xlsx" : "csv"}`);
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -53,115 +62,115 @@ const Analytics = () => {
   };
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Exam Analytics</h1>
-          <p className="mt-1 text-sm text-[#94a3b8]">
-            Cheating detection trackers, student grade aggregates, and export hubs.
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: "#1A202C" }}>Exam Analytics</h1>
+          <p style={{ fontSize: 14, color: "#718096", marginTop: 4 }}>
+            Proctoring audit, grade aggregates, and data export.
           </p>
         </div>
-        <div className="flex gap-3">
+        <div style={{ display: "flex", gap: 10 }}>
           <button
             onClick={() => handleExport("csv")}
-            className="flex items-center gap-2 rounded-lg border border-[#2d2d4a] hover:bg-white/5 px-4 py-2 font-semibold text-sm text-white transition-colors cursor-pointer"
+            style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "10px 16px",
+              borderRadius: 6, border: "1px solid #E2E8F0", background: "#FFFFFF",
+              color: "#4A5568", fontSize: 13, fontWeight: 600, cursor: "pointer",
+              transition: "all 0.2s",
+            }}
+            onMouseEnter={(e) => e.target.style.borderColor = "#4A90E2"}
+            onMouseLeave={(e) => e.target.style.borderColor = "#E2E8F0"}
           >
-            <Download className="h-4 w-4" />
-            Export CSV
+            📄 Export CSV
           </button>
           <button
             onClick={() => handleExport("excel")}
-            className="flex items-center gap-2 rounded-lg bg-[#6c63ff] hover:bg-[#5a52e0] px-4 py-2 font-semibold text-sm text-white transition-colors cursor-pointer"
+            style={{
+              display: "flex", alignItems: "center", gap: 6, padding: "10px 16px",
+              borderRadius: 6, border: "none", background: "#4A90E2",
+              color: "#FFFFFF", fontSize: 13, fontWeight: 600, cursor: "pointer",
+              transition: "background 0.2s",
+            }}
+            onMouseEnter={(e) => e.target.style.background = "#2C5F8A"}
+            onMouseLeave={(e) => e.target.style.background = "#4A90E2"}
           >
-            <FileSpreadsheet className="h-4 w-4" />
-            Export Excel
+            📊 Export Excel
           </button>
         </div>
       </div>
 
       {summaryLoading ? (
-        <div className="text-center text-[#94a3b8] py-6">Loading summary metrics...</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 20, marginBottom: 28 }}>
+          {[1, 2, 3, 4].map((i) => <div key={i} style={{ height: 100, borderRadius: 8 }} className="skeleton" />)}
+        </div>
       ) : (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="glass-card rounded-xl p-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-[#94a3b8]">
-                Average Score
-              </p>
-              <h3 className="mt-2 text-3xl font-bold text-white">
-                {summary?.average_score.toFixed(1)}
-              </h3>
-            </div>
-            <Award className="h-10 w-10 text-[#6c63ff] opacity-80" />
-          </div>
-
-          <div className="glass-card rounded-xl p-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-[#94a3b8]">
-                Pass Rate
-              </p>
-              <h3 className="mt-2 text-3xl font-bold text-[#10b981]">
-                {summary?.pass_rate.toFixed(1)}%
-              </h3>
-            </div>
-            <Activity className="h-10 w-10 text-[#10b981] opacity-80" />
-          </div>
-
-          <div className="glass-card rounded-xl p-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-[#94a3b8]">
-                Suspicious Logs
-              </p>
-              <h3 className="mt-2 text-3xl font-bold text-[#ef4444]">
-                {summary?.cheating_incidents}
-              </h3>
-            </div>
-            <AlertTriangle className="h-10 w-10 text-[#ef4444] opacity-80" />
-          </div>
-
-          <div className="glass-card rounded-xl p-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-[#94a3b8]">
-                Total Attempts
-              </p>
-              <h3 className="mt-2 text-3xl font-bold text-white">{summary?.total_submissions}</h3>
-            </div>
-            <Users className="h-10 w-10 text-[#6c63ff] opacity-80" />
-          </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 20, marginBottom: 28 }}>
+          <StatCard label="Average Score" value={summary?.average_score.toFixed(1)} color="#4A90E2" icon="📈" />
+          <StatCard label="Pass Rate" value={`${summary?.pass_rate.toFixed(1)}%`} color="#38A169" icon="✅" />
+          <StatCard label="Suspicious Logs" value={summary?.cheating_incidents} color="#E53E3E" icon="⚠️" />
+          <StatCard label="Total Attempts" value={summary?.total_submissions} color="#8B5CF6" icon="👥" />
         </div>
       )}
 
-      <div className="grid gap-6 md:grid-cols-3">
-        <div className="glass-card rounded-xl p-6 md:col-span-2">
-          <h3 className="text-lg font-bold text-white mb-6">Proctoring Audit logs</h3>
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 24 }}>
+        <div style={{
+          background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.08)", padding: "20px 24px",
+        }}>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: "#1A202C", marginBottom: 16 }}>Proctoring Audit Logs</h3>
           {suspiciousLoading ? (
-            <div className="text-center text-[#94a3b8] py-6">Loading warnings...</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              {[1, 2, 3].map((i) => <div key={i} style={{ height: 40, borderRadius: 4 }} className="skeleton" />)}
+            </div>
           ) : suspicious.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr className="border-b border-[#2d2d4a] text-xs font-semibold uppercase tracking-wider text-[#94a3b8]">
-                    <th className="py-3 px-4">Roll Number</th>
-                    <th className="py-3 px-4">Student Name</th>
-                    <th className="py-3 px-4">Warning Count</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                  <tr>
+                    {["Roll No", "Student", "Warnings", ""].map((h) => (
+                      <th key={h} style={{
+                        textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600,
+                        textTransform: "uppercase", letterSpacing: "0.05em", color: "#718096",
+                        background: "#F7F8FC", borderBottom: "1px solid #E2E8F0",
+                      }}>
+                        {h}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#2d2d4a]/50 text-sm">
+                <tbody>
                   {suspicious.map((stud) => (
-                    <tr key={stud.student_id} className="hover:bg-white/5 transition-colors">
-                      <td className="py-3.5 px-4 font-mono text-white">{stud.roll_number}</td>
-                      <td className="py-3.5 px-4 text-[#e2e8f0]">{stud.full_name}</td>
-                      <td className="py-3.5 px-4 font-bold text-[#ef4444]">
-                        {stud.warning_count} / 3
+                    <tr key={stud.student_id}
+                      style={{ transition: "background 0.15s" }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "#F7F8FC"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                    >
+                      <td style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, fontFamily: "monospace", color: "#1A202C", borderBottom: "1px solid #E2E8F0" }}>
+                        {stud.roll_number}
                       </td>
-                      <td className="py-3.5 px-4 text-right">
+                      <td style={{ padding: "10px 12px", fontSize: 13, color: "#4A5568", borderBottom: "1px solid #E2E8F0" }}>
+                        {stud.full_name}
+                      </td>
+                      <td style={{ padding: "10px 12px", borderBottom: "1px solid #E2E8F0" }}>
+                        <span style={{
+                          padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 700,
+                          background: "#FFF5F5", color: "#E53E3E",
+                        }}>
+                          {stud.warning_count} / 2
+                        </span>
+                      </td>
+                      <td style={{ padding: "10px 12px", borderBottom: "1px solid #E2E8F0", textAlign: "right" }}>
                         <button
                           onClick={() => setSelectedStudentLogs(stud)}
-                          className="flex items-center gap-1 text-[#6c63ff] hover:text-[#5a52e0] ml-auto transition-colors font-semibold cursor-pointer"
+                          style={{
+                            background: "none", border: "none", color: "#4A90E2",
+                            fontSize: 13, fontWeight: 600, cursor: "pointer",
+                          }}
+                          onMouseEnter={(e) => e.target.style.textDecoration = "underline"}
+                          onMouseLeave={(e) => e.target.style.textDecoration = "none"}
                         >
-                          <Eye className="h-4 w-4" />
-                          View Logs
+                          View Logs →
                         </button>
                       </td>
                     </tr>
@@ -170,32 +179,36 @@ const Analytics = () => {
               </table>
             </div>
           ) : (
-            <p className="text-center text-[#94a3b8] py-12">
+            <div style={{ textAlign: "center", padding: "40px 0", color: "#718096", fontSize: 14 }}>
               No suspicious events recorded. Clean proctoring status!
-            </p>
+            </div>
           )}
         </div>
 
-        <div>
+        <div style={{
+          background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.08)", padding: "20px 24px",
+        }}>
           {selectedStudentLogs ? (
-            <div className="glass-card rounded-xl p-6 space-y-6">
-              <div>
-                <h3 className="text-lg font-bold text-white">Logs: {selectedStudentLogs.full_name}</h3>
-                <p className="text-xs text-[#94a3b8] mt-1">Roll: {selectedStudentLogs.roll_number}</p>
+            <div>
+              <div style={{ marginBottom: 16 }}>
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: "#1A202C" }}>
+                  {selectedStudentLogs.full_name}
+                </h3>
+                <span style={{ fontSize: 12, color: "#718096" }}>Roll: {selectedStudentLogs.roll_number}</span>
               </div>
-
-              <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2">
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: "50vh", overflowY: "auto" }}>
                 {selectedStudentLogs.events.map((evt, idx) => (
-                  <div
-                    key={idx}
-                    className="rounded-lg border border-[#2d2d4a] bg-[#12121a] p-3 space-y-1"
-                  >
-                    <div className="flex justify-between items-center text-xs font-bold text-[#ef4444]">
+                  <div key={idx} style={{
+                    padding: "10px 12px", borderRadius: 6,
+                    background: "#FFF5F5", border: "1px solid #FED7D7",
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 600, color: "#E53E3E", marginBottom: 4 }}>
                       <span>{evt.event_type.toUpperCase()}</span>
-                      <span>Warning #{evt.warning_count}</span>
+                      <span>#{evt.warning_count}</span>
                     </div>
-                    <p className="text-xs text-[#94a3b8]">{evt.event_data}</p>
-                    <span className="block text-[10px] text-[#94a3b8]/40">
+                    <p style={{ fontSize: 12, color: "#4A5568" }}>{evt.event_data}</p>
+                    <span style={{ fontSize: 10, color: "#A0AEC0" }}>
                       {new Date(evt.timestamp).toLocaleString()}
                     </span>
                   </div>
@@ -203,7 +216,7 @@ const Analytics = () => {
               </div>
             </div>
           ) : (
-            <div className="glass-card rounded-xl p-6 text-center text-[#94a3b8] py-12">
+            <div style={{ textAlign: "center", padding: "40px 0", color: "#718096", fontSize: 14 }}>
               Select a student to audit proctoring warnings.
             </div>
           )}

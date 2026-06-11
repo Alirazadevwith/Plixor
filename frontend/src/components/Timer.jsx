@@ -1,5 +1,3 @@
-import { Clock } from "lucide-react";
-
 const Timer = ({ seconds, totalSeconds }) => {
   const percentage = (seconds / totalSeconds) * 100;
 
@@ -10,21 +8,31 @@ const Timer = ({ seconds, totalSeconds }) => {
   };
 
   const getBarColor = () => {
-    if (percentage > 50) return "bg-[#10b981]";
-    if (percentage > 20) return "bg-[#f59e0b]";
-    return "bg-[#ef4444]";
+    if (percentage > 50) return "#38A169";
+    if (percentage > 20) return "#D69E2E";
+    return "#E53E3E";
   };
 
   return (
-    <div className="flex items-center gap-3">
-      <Clock className="h-5 w-5 text-[#94a3b8]" />
-      <div className="w-32 bg-[#2d2d4a] rounded-full h-2.5 overflow-hidden">
-        <div
-          className={`h-full transition-all duration-1000 ${getBarColor()}`}
-          style={{ width: `${percentage}%` }}
-        />
+    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+      <span style={{ fontSize: 16 }}>⏱</span>
+      <div style={{
+        width: 120, height: 8, borderRadius: 4,
+        background: "#E2E8F0", overflow: "hidden",
+      }}>
+        <div style={{
+          height: "100%", borderRadius: 4,
+          background: getBarColor(),
+          width: `${percentage}%`,
+          transition: "width 1s linear",
+        }} />
       </div>
-      <span className="font-mono text-lg font-bold text-white">{formatTime(seconds)}</span>
+      <span style={{
+        fontFamily: "monospace", fontSize: 16, fontWeight: 700,
+        color: percentage <= 20 ? "#E53E3E" : "#1A202C",
+      }}>
+        {formatTime(seconds)}
+      </span>
     </div>
   );
 };

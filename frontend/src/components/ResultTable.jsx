@@ -1,58 +1,71 @@
-import { Eye } from "lucide-react";
+const statusMap = {
+  evaluated: { bg: "#F0FFF4", color: "#38A169", label: "Evaluated" },
+  submitted: { bg: "#EBF4FF", color: "#4A90E2", label: "Submitted" },
+  in_progress: { bg: "#FFFFF0", color: "#D69E2E", label: "In Progress" },
+};
 
 const ResultTable = ({ submissions, totalMarks, onViewDetail }) => {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left border-collapse">
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
-          <tr className="border-b border-[#2d2d4a] text-xs font-semibold uppercase tracking-wider text-[#94a3b8]">
-            <th className="py-3 px-4">Student ID</th>
-            <th className="py-3 px-4">Started At</th>
-            <th className="py-3 px-4">Submitted At</th>
-            <th className="py-3 px-4">Status</th>
-            <th className="py-3 px-4">Total Score</th>
-            <th className="py-3 px-4 text-right">Actions</th>
+          <tr>
+            {["Student ID", "Started", "Submitted", "Status", "Score", ""].map((h) => (
+              <th key={h} style={{
+                textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600,
+                textTransform: "uppercase", letterSpacing: "0.05em", color: "#718096",
+                background: "#F7F8FC", borderBottom: "1px solid #E2E8F0",
+              }}>
+                {h}
+              </th>
+            ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#2d2d4a]/50 text-sm">
-          {submissions.map((sub) => (
-            <tr key={sub.id} className="hover:bg-white/5 transition-colors">
-              <td className="py-3.5 px-4 font-mono text-white">
-                {sub.student_id.substring(0, 8)}...
-              </td>
-              <td className="py-3.5 px-4 text-[#94a3b8]">
-                {new Date(sub.started_at).toLocaleString()}
-              </td>
-              <td className="py-3.5 px-4 text-[#94a3b8]">
-                {sub.submitted_at ? new Date(sub.submitted_at).toLocaleString() : "-"}
-              </td>
-              <td className="py-3.5 px-4">
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                    sub.status === "evaluated"
-                      ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                      : sub.status === "submitted"
-                      ? "bg-blue-500/10 text-blue-500 border border-blue-500/20"
-                      : "bg-amber-500/10 text-amber-500 border border-amber-500/20"
-                  }`}
-                >
-                  {sub.status.toUpperCase()}
-                </span>
-              </td>
-              <td className="py-3.5 px-4 text-white font-semibold">
-                {sub.total_score !== null ? `${sub.total_score} / ${totalMarks}` : "-"}
-              </td>
-              <td className="py-3.5 px-4 text-right">
-                <button
-                  onClick={() => onViewDetail(sub.id)}
-                  className="flex items-center gap-1 text-[#6c63ff] hover:text-[#5a52e0] ml-auto transition-colors font-semibold cursor-pointer"
-                >
-                  <Eye className="h-4 w-4" />
-                  Grade Detail
-                </button>
-              </td>
-            </tr>
-          ))}
+        <tbody>
+          {submissions.map((sub) => {
+            const s = statusMap[sub.status] || statusMap.submitted;
+            return (
+              <tr key={sub.id}
+                style={{ transition: "background 0.15s" }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "#F7F8FC"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+              >
+                <td style={{ padding: "10px 12px", fontSize: 13, fontFamily: "monospace", fontWeight: 600, color: "#1A202C", borderBottom: "1px solid #E2E8F0" }}>
+                  {sub.student_id?.substring(0, 8)}...
+                </td>
+                <td style={{ padding: "10px 12px", fontSize: 12, color: "#4A5568", borderBottom: "1px solid #E2E8F0" }}>
+                  {new Date(sub.started_at).toLocaleString()}
+                </td>
+                <td style={{ padding: "10px 12px", fontSize: 12, color: "#4A5568", borderBottom: "1px solid #E2E8F0" }}>
+                  {sub.submitted_at ? new Date(sub.submitted_at).toLocaleString() : "—"}
+                </td>
+                <td style={{ padding: "10px 12px", borderBottom: "1px solid #E2E8F0" }}>
+                  <span style={{
+                    padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600,
+                    background: s.bg, color: s.color,
+                  }}>
+                    {s.label}
+                  </span>
+                </td>
+                <td style={{ padding: "10px 12px", fontSize: 14, fontWeight: 700, color: "#1A202C", borderBottom: "1px solid #E2E8F0" }}>
+                  {sub.total_score !== null ? `${sub.total_score} / ${totalMarks}` : "—"}
+                </td>
+                <td style={{ padding: "10px 12px", borderBottom: "1px solid #E2E8F0", textAlign: "right" }}>
+                  <button
+                    onClick={() => onViewDetail(sub.id)}
+                    style={{
+                      background: "none", border: "none", color: "#4A90E2",
+                      fontSize: 13, fontWeight: 600, cursor: "pointer",
+                    }}
+                    onMouseEnter={(e) => e.target.style.textDecoration = "underline"}
+                    onMouseLeave={(e) => e.target.style.textDecoration = "none"}
+                  >
+                    View Details →
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

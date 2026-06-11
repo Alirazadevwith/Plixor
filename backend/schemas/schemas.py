@@ -202,6 +202,7 @@ class SubmissionResponse(BaseModel):
     submitted_at: Optional[datetime] = None
     status: SubmissionStatus
     total_score: Optional[float] = None
+    warning_count: int = 0
     student: Optional[StudentResponse] = None
 
     model_config = {"from_attributes": True}
@@ -233,6 +234,11 @@ class CheatingLogResponse(BaseModel):
     warning_count: int
 
     model_config = {"from_attributes": True}
+
+
+class CheatingLogEventResponse(BaseModel):
+    warning_count: int
+    auto_submitted: bool
 
 
 class CriterionScoreResponse(BaseModel):

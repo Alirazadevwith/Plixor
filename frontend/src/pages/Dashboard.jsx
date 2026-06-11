@@ -1,27 +1,54 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useApp } from "../hooks/useApp";
 import api from "../api/api";
-import {
-  Users,
-  BookOpen,
-  FileText,
-  PlusCircle,
-  PlayCircle,
-  Award,
-} from "lucide-react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-} from "recharts";
+
+const StatCard = ({ label, value, loading, color, icon }) => (
+  <div style={{
+    background: "#FFFFFF",
+    border: "1px solid #E2E8F0",
+    borderRadius: 8,
+    boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+    padding: "20px 24px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  }}>
+    <div>
+      <div style={{
+        fontSize: 12,
+        fontWeight: 600,
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
+        color: "#718096",
+        marginBottom: 8,
+      }}>
+        {label}
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 700, color: "#1A202C" }}>
+        {loading ? (
+          <div style={{ width: 48, height: 28, borderRadius: 4 }} className="skeleton" />
+        ) : value}
+      </div>
+    </div>
+    <div style={{
+      width: 48,
+      height: 48,
+      borderRadius: 10,
+      background: color + "15",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      fontSize: 22,
+    }}>
+      {icon}
+    </div>
+  </div>
+);
 
 const Dashboard = () => {
   const { user, isTeacher, isStudent } = useApp();
+  const navigate = useNavigate();
 
   const { data: sections = [], isLoading: sectionsLoading } = useQuery({
     queryKey: ["sections"],
@@ -49,192 +76,308 @@ const Dashboard = () => {
     enabled: isStudent,
   });
 
-  const teacherChartData = exams.map((exam) => ({
-    name: exam.title,
-    marks: exam.total_marks,
-  }));
-
   const activeExamsCount = exams.filter((e) => e.status === "active").length;
-  const draftExamsCount = exams.filter((e) => e.status === "draft").length;
+  const pendingCount = exams.filter((e) => e.status === "draft").length;
+  const evaluatedCount = exams.filter((e) => e.status === "evaluated").length;
+
+  const recentExams = [...exams]
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .slice(0, 5);
+
+  const statusBadge = (status) => {
+    const map = {
+      draft: { bg: "#FFFFF0", color: "#D69E2E", label: "Draft" },
+      active: { bg: "#EBF4FF", color: "#4A90E2", label: "Active" },
+      completed: { bg: "#F0FFF4", color: "#38A169", label: "Completed" },
+      evaluated: { bg: "#F0FFF4", color: "#38A169", label: "Evaluated" },
+    };
+    const s = map[status] || map.draft;
+    return (
+      <span style={{
+        padding: "3px 10px",
+        borderRadius: 12,
+        fontSize: 11,
+        fontWeight: 600,
+        background: s.bg,
+        color: s.color,
+      }}>
+        {s.label}
+      </span>
+    );
+  };
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight text-white">
+    <div>
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, color: "#1A202C" }}>
           Welcome back, {user?.full_name}
         </h1>
-        <p className="mt-1 text-sm text-[#94a3b8]">
-          Here is an overview of your academic platform metrics.
+        <p style={{ fontSize: 14, color: "#718096", marginTop: 4 }}>
+          Here is an overview of your platform activity.
         </p>
       </div>
 
       {isTeacher && (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="glass-card rounded-xl p-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-[#94a3b8]">
-                Total Sections
-              </p>
-              <h3 className="mt-2 text-3xl font-bold text-white">
-                {sectionsLoading ? "..." : sections.length}
-              </h3>
-            </div>
-            <Users className="h-10 w-10 text-[#6c63ff] opacity-80" />
+        <>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+            gap: 20,
+            marginBottom: 28,
+          }}>
+            <StatCard label="Total Exams" value={exams.length} loading={examsLoading} color="#4A90E2" icon="📝" />
+            <StatCard label="Active Sections" value={sections.length} loading={sectionsLoading} color="#8B5CF6" icon="👥" />
+            <StatCard label="Pending Drafts" value={pendingCount} loading={examsLoading} color="#D69E2E" icon="📋" />
+            <StatCard label="Evaluated" value={evaluatedCount} loading={examsLoading} color="#38A169" icon="✅" />
           </div>
 
-          <div className="glass-card rounded-xl p-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-[#94a3b8]">
-                Active Exams
-              </p>
-              <h3 className="mt-2 text-3xl font-bold text-[#10b981]">
-                {examsLoading ? "..." : activeExamsCount}
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "2fr 1fr",
+            gap: 24,
+          }}>
+            <div style={{
+              background: "#FFFFFF",
+              border: "1px solid #E2E8F0",
+              borderRadius: 8,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+              padding: "20px 24px",
+            }}>
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: "#1A202C", marginBottom: 16 }}>
+                Recent Exams
               </h3>
-            </div>
-            <PlayCircle className="h-10 w-10 text-[#10b981] opacity-80" />
-          </div>
-
-          <div className="glass-card rounded-xl p-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-[#94a3b8]">
-                Draft Exams
-              </p>
-              <h3 className="mt-2 text-3xl font-bold text-[#f59e0b]">
-                {examsLoading ? "..." : draftExamsCount}
-              </h3>
-            </div>
-            <FileText className="h-10 w-10 text-[#f59e0b] opacity-80" />
-          </div>
-
-          <div className="glass-card rounded-xl p-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-[#94a3b8]">
-                Total Exams
-              </p>
-              <h3 className="mt-2 text-3xl font-bold text-white">
-                {examsLoading ? "..." : exams.length}
-              </h3>
-            </div>
-            <BookOpen className="h-10 w-10 text-[#6c63ff] opacity-80" />
-          </div>
-        </div>
-      )}
-
-      {isStudent && (
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <div className="glass-card rounded-xl p-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-[#94a3b8]">
-                Active Assigned Exams
-              </p>
-              <h3 className="mt-2 text-3xl font-bold text-[#10b981]">
-                {studentAvailableLoading ? "..." : studentAvailableExams.length}
-              </h3>
-            </div>
-            <PlayCircle className="h-10 w-10 text-[#10b981] opacity-80" />
-          </div>
-
-          <div className="glass-card rounded-xl p-6 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-wider text-[#94a3b8]">
-                Completed Exams
-              </p>
-              <h3 className="mt-2 text-3xl font-bold text-white">
-                {examsLoading
-                  ? "..."
-                  : exams.filter((e) => e.status === "completed" || e.status === "evaluated").length}
-              </h3>
-            </div>
-            <Award className="h-10 w-10 text-[#6c63ff] opacity-80" />
-          </div>
-        </div>
-      )}
-
-      {isTeacher && (
-        <div className="grid gap-6 md:grid-cols-3">
-          <div className="glass-card rounded-xl p-6 md:col-span-2">
-            <h3 className="text-lg font-bold text-white mb-6">Exams Mark Allocation</h3>
-            <div className="h-72">
-              {exams.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={teacherChartData}>
-                    <CartesianGrid stroke="#2d2d4a" strokeDasharray="3 3" />
-                    <XAxis dataKey="name" stroke="#94a3b8" />
-                    <YAxis stroke="#94a3b8" />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: "#1a1a2e",
-                        border: "1px solid #2d2d4a",
-                        color: "#e2e8f0",
-                      }}
-                    />
-                    <Bar dataKey="marks" fill="#6c63ff" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+              {examsLoading ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} style={{ height: 44, borderRadius: 6 }} className="skeleton" />
+                  ))}
+                </div>
+              ) : recentExams.length > 0 ? (
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr>
+                      {["Title", "Subject", "Type", "Status"].map((h) => (
+                        <th key={h} style={{
+                          textAlign: "left",
+                          padding: "8px 12px",
+                          fontSize: 11,
+                          fontWeight: 600,
+                          textTransform: "uppercase",
+                          letterSpacing: "0.05em",
+                          color: "#718096",
+                          background: "#F7F8FC",
+                          borderBottom: "1px solid #E2E8F0",
+                        }}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentExams.map((exam) => (
+                      <tr
+                        key={exam.id}
+                        style={{ cursor: "pointer", transition: "background 0.15s" }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = "#F7F8FC"}
+                        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                        onClick={() => navigate("/exams")}
+                      >
+                        <td style={{ padding: "10px 12px", fontSize: 14, fontWeight: 500, color: "#1A202C", borderBottom: "1px solid #E2E8F0" }}>
+                          {exam.title}
+                        </td>
+                        <td style={{ padding: "10px 12px", fontSize: 13, color: "#4A5568", borderBottom: "1px solid #E2E8F0" }}>
+                          {exam.subject}
+                        </td>
+                        <td style={{ padding: "10px 12px", fontSize: 13, color: "#4A5568", borderBottom: "1px solid #E2E8F0", textTransform: "capitalize" }}>
+                          {exam.exam_type}
+                        </td>
+                        <td style={{ padding: "10px 12px", borderBottom: "1px solid #E2E8F0" }}>
+                          {statusBadge(exam.status)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               ) : (
-                <div className="flex h-full items-center justify-center text-[#94a3b8]">
-                  No exams created yet.
+                <div style={{ textAlign: "center", padding: "32px 0", color: "#718096", fontSize: 14 }}>
+                  No exams created yet. Get started by creating your first exam.
                 </div>
               )}
             </div>
-          </div>
 
-          <div className="glass-card rounded-xl p-6 space-y-6">
-            <h3 className="text-lg font-bold text-white">Quick Actions</h3>
-            <div className="space-y-4">
-              <Link
-                to="/sections"
-                className="flex items-center gap-3 w-full rounded-lg bg-[#6c63ff]/10 hover:bg-[#6c63ff]/20 border border-[#6c63ff]/20 p-4 font-semibold text-white transition-colors"
-              >
-                <PlusCircle className="h-5 w-5 text-[#6c63ff]" />
-                Manage Classroom Sections
-              </Link>
-              <Link
-                to="/exams"
-                className="flex items-center gap-3 w-full rounded-lg bg-[#6c63ff]/10 hover:bg-[#6c63ff]/20 border border-[#6c63ff]/20 p-4 font-semibold text-white transition-colors"
-              >
-                <PlusCircle className="h-5 w-5 text-[#6c63ff]" />
-                Create New Examination
-              </Link>
+            <div style={{
+              background: "#FFFFFF",
+              border: "1px solid #E2E8F0",
+              borderRadius: 8,
+              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+              padding: "20px 24px",
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+            }}>
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: "#1A202C", marginBottom: 4 }}>
+                Quick Actions
+              </h3>
+              {[
+                { label: "Create New Exam", icon: "📝", path: "/exams" },
+                { label: "Add Section", icon: "👥", path: "/sections" },
+                { label: "View Results", icon: "📈", path: "/results" },
+              ].map((action) => (
+                <Link
+                  key={action.label}
+                  to={action.path}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "12px 14px",
+                    borderRadius: 6,
+                    border: "1px solid #E2E8F0",
+                    textDecoration: "none",
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: "#1A202C",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = "#4A90E2";
+                    e.currentTarget.style.background = "#EBF4FF";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = "#E2E8F0";
+                    e.currentTarget.style.background = "transparent";
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>{action.icon}</span>
+                  {action.label}
+                </Link>
+              ))}
             </div>
           </div>
-        </div>
+        </>
       )}
 
       {isStudent && (
-        <div className="glass-card rounded-xl p-6">
-          <h3 className="text-lg font-bold text-white mb-6">Active Exams to Attempt</h3>
-          {studentAvailableLoading ? (
-            <div className="text-center text-[#94a3b8]">Loading exams...</div>
-          ) : studentAvailableExams.length > 0 ? (
-            <div className="grid gap-6 md:grid-cols-2">
-              {studentAvailableExams.map((exam) => (
-                <div
-                  key={exam.id}
-                  className="rounded-lg border border-[#2d2d4a] bg-[#12121a] p-5 flex flex-col justify-between hover:border-[#6c63ff] transition-all"
-                >
-                  <div>
-                    <h4 className="text-md font-bold text-white">{exam.title}</h4>
-                    <p className="text-sm text-[#94a3b8] mt-1">{exam.subject}</p>
-                    <div className="mt-4 flex items-center justify-between text-xs text-[#94a3b8]">
-                      <span>Duration: {exam.duration_minutes} mins</span>
-                      <span>Marks: {exam.total_marks}</span>
-                    </div>
-                  </div>
-                  <Link
-                    to={`/take-exam/${exam.id}`}
-                    className="mt-6 flex items-center justify-center gap-2 w-full rounded-lg bg-[#6c63ff] hover:bg-[#5a52e0] py-2 font-semibold text-white transition-colors"
+        <>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+            gap: 20,
+            marginBottom: 28,
+          }}>
+            <StatCard
+              label="Available Exams"
+              value={studentAvailableExams.length}
+              loading={studentAvailableLoading}
+              color="#4A90E2"
+              icon="📋"
+            />
+            <StatCard
+              label="Completed Exams"
+              value={exams.filter((e) => e.status === "completed" || e.status === "evaluated").length}
+              loading={examsLoading}
+              color="#38A169"
+              icon="✅"
+            />
+          </div>
+
+          <div style={{
+            background: "#FFFFFF",
+            border: "1px solid #E2E8F0",
+            borderRadius: 8,
+            boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+            padding: "20px 24px",
+          }}>
+            <h3 style={{ fontSize: 16, fontWeight: 600, color: "#1A202C", marginBottom: 20 }}>
+              Active Exams to Attempt
+            </h3>
+            {studentAvailableLoading ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {[1, 2].map((i) => (
+                  <div key={i} style={{ height: 100, borderRadius: 8 }} className="skeleton" />
+                ))}
+              </div>
+            ) : studentAvailableExams.length > 0 ? (
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))",
+                gap: 16,
+              }}>
+                {studentAvailableExams.map((exam) => (
+                  <div
+                    key={exam.id}
+                    style={{
+                      padding: 20,
+                      border: "1px solid #E2E8F0",
+                      borderRadius: 8,
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = "#4A90E2";
+                      e.currentTarget.style.boxShadow = "0 4px 12px rgba(0,0,0,0.06)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = "#E2E8F0";
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
                   >
-                    <PlayCircle className="h-4 w-4" />
-                    Start Exam
-                  </Link>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-[#94a3b8] text-center py-6">No active exams assigned to you at this moment.</p>
-          )}
-        </div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                      <div>
+                        <div style={{ fontSize: 15, fontWeight: 600, color: "#1A202C" }}>{exam.title}</div>
+                        <div style={{ fontSize: 13, color: "#718096", marginTop: 2 }}>{exam.subject}</div>
+                      </div>
+                      <span style={{
+                        padding: "3px 10px",
+                        borderRadius: 12,
+                        fontSize: 11,
+                        fontWeight: 600,
+                        background: "#EBF4FF",
+                        color: "#4A90E2",
+                        textTransform: "capitalize",
+                      }}>
+                        {exam.exam_type}
+                      </span>
+                    </div>
+                    <div style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      fontSize: 12,
+                      color: "#718096",
+                      marginBottom: 16,
+                    }}>
+                      <span>⏱ {exam.duration_minutes} mins</span>
+                      <span>📊 {exam.total_marks} marks</span>
+                    </div>
+                    <Link
+                      to={`/exam/${exam.id}`}
+                      style={{
+                        display: "block",
+                        textAlign: "center",
+                        padding: "10px 16px",
+                        borderRadius: 6,
+                        background: "#4A90E2",
+                        color: "#FFFFFF",
+                        fontSize: 14,
+                        fontWeight: 600,
+                        textDecoration: "none",
+                        transition: "background 0.2s",
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "#2C5F8A"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "#4A90E2"}
+                    >
+                      Start Exam
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ textAlign: "center", padding: "32px 0", color: "#718096", fontSize: 14 }}>
+                No active exams assigned to you at this moment.
+              </div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );

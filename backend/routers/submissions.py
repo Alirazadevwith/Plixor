@@ -27,6 +27,7 @@ from schemas.schemas import (
     SubmissionSubmit,
     CheatingLogCreate,
     CheatingLogResponse,
+    CheatingLogEventResponse,
     EvaluationResponse,
     OverrideRequest,
 )
@@ -338,7 +339,7 @@ async def get_student_exam_submissions(
 
 
 
-@router.post("/{id}/cheating-log", response_model=CheatingLogResponse)
+@router.post("/{id}/cheating-log", response_model=CheatingLogEventResponse)
 async def log_cheating_event(
     id: uuid.UUID,
     event_in: CheatingLogCreate,
@@ -355,30 +356,34 @@ async def log_cheating_event(
     if not student or submission.student_id != student.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
-    count_result = await db.execute(
-        select(CheatingLog).where(CheatingLog.submission_id == id)
-    )
-    warnings = count_result.scalars().all()
-    warning_count = len(warnings) + 1
+    submission.warning_count += 1
 
     cheating_log = CheatingLog(
         submission_id=id,
         event_type=event_in.event_type,
         event_data=event_in.event_data,
-        warning_count=warning_count,
+        warning_count=submission.warning_count,
         timestamp=datetime.now(timezone.utc),
     )
     db.add(cheating_log)
-    await db.flush()
 
-    if warning_count >= 3 and submission.status == SubmissionStatus.in_progress:
+    auto_submitted = False
+
+    if submission.warning_count >= 2 and submission.status == SubmissionStatus.in_progress:
         submission.status = SubmissionStatus.submitted
         submission.submitted_at = datetime.now(timezone.utc)
+        auto_submitted = True
         db.add(submission)
         await db.flush()
         await ai_service.evaluate_submission(submission.id, db)
+    else:
+        db.add(submission)
+        await db.flush()
 
-    return cheating_log
+    return CheatingLogEventResponse(
+        warning_count=submission.warning_count,
+        auto_submitted=auto_submitted,
+    )
 
 
 @router.get("/exam/{exam_id}/suspicious", response_model=List[CheatingLogResponse])

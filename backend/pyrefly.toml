@@ -1,0 +1,6 @@
+[tool.pyrefly]
+project_root = "."
+python_version = "3.12"
+search_path = ["."]
+venv_path = ".venv"
+ignore_errors = ["missing-import"]

@@ -1,29 +1,48 @@
-import { Trash2 } from "lucide-react";
-
 const StudentTable = ({ students, onRemoveStudent }) => {
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left border-collapse">
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
-          <tr className="border-b border-[#2d2d4a] text-xs font-semibold uppercase tracking-wider text-[#94a3b8]">
-            <th className="py-3 px-4">Roll Number</th>
-            <th className="py-3 px-4">Full Name</th>
-            <th className="py-3 px-4">Email</th>
-            <th className="py-3 px-4 text-right">Actions</th>
+          <tr>
+            {["Roll No", "Name", "Email", ""].map((h) => (
+              <th key={h} style={{
+                textAlign: "left", padding: "10px 12px", fontSize: 11, fontWeight: 600,
+                textTransform: "uppercase", letterSpacing: "0.05em", color: "#718096",
+                background: "#F7F8FC", borderBottom: "1px solid #E2E8F0",
+              }}>
+                {h}
+              </th>
+            ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-[#2d2d4a]/50 text-sm">
+        <tbody>
           {students.map((student) => (
-            <tr key={student.id} className="hover:bg-white/5 transition-colors">
-              <td className="py-3.5 px-4 font-mono text-white">{student.roll_number}</td>
-              <td className="py-3.5 px-4 text-[#e2e8f0]">{student.user?.full_name}</td>
-              <td className="py-3.5 px-4 text-[#94a3b8]">{student.user?.email}</td>
-              <td className="py-3.5 px-4 text-right">
+            <tr key={student.id}
+              style={{ transition: "background 0.15s" }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "#F7F8FC"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+            >
+              <td style={{ padding: "10px 12px", fontSize: 13, fontFamily: "monospace", fontWeight: 600, color: "#1A202C", borderBottom: "1px solid #E2E8F0" }}>
+                {student.roll_number}
+              </td>
+              <td style={{ padding: "10px 12px", fontSize: 13, color: "#1A202C", borderBottom: "1px solid #E2E8F0" }}>
+                {student.user?.full_name}
+              </td>
+              <td style={{ padding: "10px 12px", fontSize: 13, color: "#4A5568", borderBottom: "1px solid #E2E8F0" }}>
+                {student.user?.email}
+              </td>
+              <td style={{ padding: "10px 12px", borderBottom: "1px solid #E2E8F0", textAlign: "right" }}>
                 <button
                   onClick={() => onRemoveStudent(student.id)}
-                  className="text-[#94a3b8] hover:text-[#ef4444] p-1 rounded transition-colors cursor-pointer"
+                  style={{
+                    background: "none", border: "none", color: "#A0AEC0",
+                    cursor: "pointer", fontSize: 16, padding: 4, borderRadius: 4,
+                    transition: "color 0.2s",
+                  }}
+                  onMouseEnter={(e) => e.target.style.color = "#E53E3E"}
+                  onMouseLeave={(e) => e.target.style.color = "#A0AEC0"}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  🗑️
                 </button>
               </td>
             </tr>

@@ -1,0 +1,16 @@
+[tool.pyrefly]
+project_root = "."
+python_version = "3.12"
+search_path = ["."]
+venv_path = ".venv"
+
+[tool.pyright]
+pythonVersion = "3.12"
+venvPath = "."
+venv = ".venv"
+pythonPlatform = "Windows"
+typeCheckingMode = "basic"
+reportMissingImports = false
+reportMissingModuleSource = false
+include = ["."]
+exclude = [".venv", "__pycache__", "chroma_data"]

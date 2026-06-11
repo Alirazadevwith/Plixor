@@ -4,7 +4,35 @@ import { Link } from "react-router-dom";
 import { useApp } from "../hooks/useApp";
 import api from "../api/api";
 import ExamBuilder from "../components/ExamBuilder";
-import { Plus, Play, Eye, BarChart2, BookOpen, Trash2, ArrowLeft } from "lucide-react";
+
+const inputStyle = {
+  width: "100%",
+  padding: "8px 12px",
+  border: "1px solid #E2E8F0",
+  borderRadius: 6,
+  fontSize: 14,
+  color: "#1A202C",
+  background: "#FFFFFF",
+  outline: "none",
+  transition: "border-color 0.2s",
+};
+
+const labelStyle = {
+  display: "block",
+  fontSize: 12,
+  fontWeight: 600,
+  color: "#718096",
+  textTransform: "uppercase",
+  letterSpacing: "0.05em",
+  marginBottom: 6,
+};
+
+const statusMap = {
+  draft: { bg: "#FFFFF0", color: "#D69E2E", label: "Draft" },
+  active: { bg: "#EBF4FF", color: "#4A90E2", label: "Active" },
+  completed: { bg: "#F0FFF4", color: "#38A169", label: "Completed" },
+  evaluated: { bg: "#F0FFF4", color: "#38A169", label: "Evaluated" },
+};
 
 const Exams = () => {
   const queryClient = useQueryClient();
@@ -49,26 +77,15 @@ const Exams = () => {
       queryClient.invalidateQueries({ queryKey: ["exams"] });
       setShowCreateModal(false);
       setNewExam({
-        title: "",
-        subject: "",
-        exam_type: "quiz",
-        section_id: "",
-        duration_minutes: 60,
-        total_marks: 100,
-        start_time: "",
-        end_time: "",
-        is_randomized: false,
+        title: "", subject: "", exam_type: "quiz", section_id: "",
+        duration_minutes: 60, total_marks: 100, start_time: "", end_time: "", is_randomized: false,
       });
     },
   });
 
   const deleteExamMutation = useMutation({
-    mutationFn: async (id) => {
-      await api.delete(`/exams/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["exams"] });
-    },
+    mutationFn: async (id) => { await api.delete(`/exams/${id}`); },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["exams"] }),
   });
 
   const publishExamMutation = useMutation({
@@ -76,9 +93,7 @@ const Exams = () => {
       const res = await api.post(`/exams/${id}/publish`);
       return res.data;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["exams"] });
-    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["exams"] }),
   });
 
   const handleCreateExam = (e) => {
@@ -95,13 +110,16 @@ const Exams = () => {
   if (selectedExamId) {
     const exam = exams.find((e) => e.id === selectedExamId);
     return (
-      <div className="space-y-8">
+      <div>
         <button
           onClick={() => setSelectedExamId(null)}
-          className="flex items-center gap-2 text-sm text-[#94a3b8] hover:text-white transition-colors cursor-pointer"
+          style={{
+            display: "flex", alignItems: "center", gap: 6,
+            background: "none", border: "none", fontSize: 14, fontWeight: 500,
+            color: "#4A90E2", cursor: "pointer", marginBottom: 20, padding: 0,
+          }}
         >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Exams
+          ← Back to Exams
         </button>
         <ExamBuilder exam={exam} />
       </div>
@@ -109,309 +127,290 @@ const Exams = () => {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-white">Examinations</h1>
-          <p className="mt-1 text-sm text-[#94a3b8]">
-            {isTeacher
-              ? "Design test structures, randomize questionnaires, and check analytical grading."
-              : "Access your available and graded examinations."}
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: "#1A202C" }}>Examinations</h1>
+          <p style={{ fontSize: 14, color: "#718096", marginTop: 4 }}>
+            {isTeacher ? "Create, manage, and publish exams." : "View your available and graded exams."}
           </p>
         </div>
         {isTeacher && (
           <button
             onClick={() => setShowCreateModal(true)}
-            className="flex items-center gap-2 rounded-lg bg-[#6c63ff] hover:bg-[#5a52e0] px-4 py-2 font-semibold text-white transition-colors cursor-pointer"
+            style={{
+              display: "flex", alignItems: "center", gap: 8,
+              padding: "10px 20px", borderRadius: 6, border: "none",
+              background: "#4A90E2", color: "#FFFFFF", fontSize: 14, fontWeight: 600, cursor: "pointer",
+              transition: "background 0.2s",
+            }}
+            onMouseEnter={(e) => e.target.style.background = "#2C5F8A"}
+            onMouseLeave={(e) => e.target.style.background = "#4A90E2"}
           >
-            <Plus className="h-4 w-4" />
-            Create Exam
+            + New Exam
           </button>
         )}
       </div>
 
       {examsLoading ? (
-        <div className="text-center text-[#94a3b8]">Loading examinations...</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
+          {[1, 2, 3].map((i) => <div key={i} style={{ height: 240, borderRadius: 8 }} className="skeleton" />)}
+        </div>
       ) : exams.length > 0 ? (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {exams.map((exam) => (
-            <div
-              key={exam.id}
-              className="glass-card rounded-xl p-6 flex flex-col justify-between border border-transparent hover:border-[#6c63ff]/30 transition-all"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <span
-                    className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                      exam.status === "active"
-                        ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
-                        : exam.status === "draft"
-                        ? "bg-amber-500/10 text-amber-500 border border-amber-500/20"
-                        : "bg-blue-500/10 text-blue-500 border border-blue-500/20"
-                    }`}
-                  >
-                    {exam.status.toUpperCase()}
-                  </span>
-                  <span className="text-xs text-[#94a3b8]">{exam.exam_type.toUpperCase()}</span>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
+          {exams.map((exam) => {
+            const s = statusMap[exam.status] || statusMap.draft;
+            return (
+              <div
+                key={exam.id}
+                style={{
+                  background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8,
+                  boxShadow: "0 1px 3px rgba(0,0,0,0.08)", padding: 24,
+                  display: "flex", flexDirection: "column", justifyContent: "space-between",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 4px 16px rgba(0,0,0,0.1)"; e.currentTarget.style.borderColor = "#4A90E2"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)"; e.currentTarget.style.borderColor = "#E2E8F0"; }}
+              >
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+                    <span style={{
+                      padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600,
+                      background: s.bg, color: s.color,
+                    }}>
+                      {s.label}
+                    </span>
+                    <span style={{ fontSize: 11, fontWeight: 600, color: "#718096", textTransform: "uppercase" }}>
+                      {exam.exam_type}
+                    </span>
+                  </div>
+                  <h3 style={{ fontSize: 18, fontWeight: 700, color: "#1A202C", marginBottom: 4 }}>{exam.title}</h3>
+                  <p style={{ fontSize: 13, color: "#718096", marginBottom: 16 }}>{exam.subject}</p>
+                  <div style={{
+                    display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
+                    borderTop: "1px solid #E2E8F0", paddingTop: 12, marginBottom: 16,
+                  }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: "#718096", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Duration</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#1A202C" }}>{exam.duration_minutes} min</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 11, color: "#718096", textTransform: "uppercase", fontWeight: 600, marginBottom: 2 }}>Marks</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: "#1A202C" }}>{exam.total_marks}</div>
+                    </div>
+                  </div>
                 </div>
 
-                <h3 className="text-xl font-bold text-white mb-1">{exam.title}</h3>
-                <p className="text-sm text-[#94a3b8] mb-4">{exam.subject}</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {isTeacher && (
+                    <>
+                      {exam.status === "draft" && (
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button
+                            onClick={() => setSelectedExamId(exam.id)}
+                            style={{
+                              flex: 1, padding: "8px 12px", borderRadius: 6, border: "1px solid #4A90E2",
+                              background: "transparent", color: "#4A90E2", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                              transition: "all 0.2s",
+                            }}
+                            onMouseEnter={(e) => e.target.style.background = "#EBF4FF"}
+                            onMouseLeave={(e) => e.target.style.background = "transparent"}
+                          >
+                            ✏️ Build Questions
+                          </button>
+                          <button
+                            onClick={() => publishExamMutation.mutate(exam.id)}
+                            style={{
+                              flex: 1, padding: "8px 12px", borderRadius: 6, border: "none",
+                              background: "#38A169", color: "#FFFFFF", fontSize: 13, fontWeight: 600, cursor: "pointer",
+                              transition: "background 0.2s",
+                            }}
+                            onMouseEnter={(e) => e.target.style.background = "#2F855A"}
+                            onMouseLeave={(e) => e.target.style.background = "#38A169"}
+                          >
+                            🚀 Publish
+                          </button>
+                        </div>
+                      )}
 
-                <div className="grid grid-cols-2 gap-4 text-xs text-[#94a3b8] border-t border-[#2d2d4a]/50 pt-4 mb-6">
-                  <div>
-                    <span className="block text-[#94a3b8]/60 uppercase tracking-wider font-semibold mb-0.5">
-                      Duration
-                    </span>
-                    <span className="text-white font-semibold">{exam.duration_minutes} Minutes</span>
-                  </div>
-                  <div>
-                    <span className="block text-[#94a3b8]/60 uppercase tracking-wider font-semibold mb-0.5">
-                      Total Marks
-                    </span>
-                    <span className="text-white font-semibold">{exam.total_marks} Marks</span>
-                  </div>
-                </div>
-              </div>
+                      {exam.status !== "draft" && (
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <Link
+                            to={`/results/${exam.id}`}
+                            style={{
+                              flex: 1, textAlign: "center", padding: "8px 12px", borderRadius: 6,
+                              border: "1px solid #4A90E2", background: "transparent", color: "#4A90E2",
+                              fontSize: 13, fontWeight: 600, textDecoration: "none", transition: "all 0.2s",
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = "#EBF4FF"}
+                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                          >
+                            📊 Submissions
+                          </Link>
+                        </div>
+                      )}
 
-              <div className="flex flex-col gap-2 mt-auto">
-                {isTeacher && (
-                  <>
-                    {exam.status === "draft" && (
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setSelectedExamId(exam.id)}
-                          className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#6c63ff]/10 hover:bg-[#6c63ff]/20 border border-[#6c63ff]/20 py-2 text-sm font-semibold text-white transition-colors cursor-pointer"
+                      <button
+                        onClick={() => deleteExamMutation.mutate(exam.id)}
+                        style={{
+                          width: "100%", padding: "8px 12px", borderRadius: 6,
+                          border: "1px solid #E2E8F0", background: "transparent",
+                          color: "#718096", fontSize: 13, fontWeight: 500, cursor: "pointer",
+                          transition: "all 0.2s",
+                        }}
+                        onMouseEnter={(e) => { e.target.style.borderColor = "#E53E3E"; e.target.style.color = "#E53E3E"; e.target.style.background = "#FFF5F5"; }}
+                        onMouseLeave={(e) => { e.target.style.borderColor = "#E2E8F0"; e.target.style.color = "#718096"; e.target.style.background = "transparent"; }}
+                      >
+                        🗑️ Delete
+                      </button>
+                    </>
+                  )}
+
+                  {isStudent && (
+                    <>
+                      {exam.status === "active" && (
+                        <Link
+                          to={`/exam/${exam.id}`}
+                          style={{
+                            display: "block", textAlign: "center", padding: "10px 16px", borderRadius: 6,
+                            background: "#4A90E2", color: "#FFFFFF", fontSize: 14, fontWeight: 600,
+                            textDecoration: "none", transition: "background 0.2s",
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = "#2C5F8A"}
+                          onMouseLeave={(e) => e.currentTarget.style.background = "#4A90E2"}
                         >
-                          <BookOpen className="h-4 w-4 text-[#6c63ff]" />
-                          Build Qs
-                        </button>
-                        <button
-                          onClick={() => publishExamMutation.mutate(exam.id)}
-                          className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 py-2 text-sm font-semibold text-[#10b981] transition-colors cursor-pointer"
-                        >
-                          <Play className="h-4 w-4" />
-                          Publish
-                        </button>
-                      </div>
-                    )}
-
-                    {exam.status !== "draft" && (
-                      <div className="flex gap-2">
+                          Start Exam
+                        </Link>
+                      )}
+                      {(exam.status === "completed" || exam.status === "evaluated") && (
                         <Link
                           to={`/results/${exam.id}`}
-                          className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#6c63ff]/10 hover:bg-[#6c63ff]/20 border border-[#6c63ff]/20 py-2 text-sm font-semibold text-white transition-colors"
+                          style={{
+                            display: "block", textAlign: "center", padding: "10px 16px", borderRadius: 6,
+                            border: "1px solid #4A90E2", background: "transparent", color: "#4A90E2",
+                            fontSize: 14, fontWeight: 600, textDecoration: "none", transition: "all 0.2s",
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = "#EBF4FF"}
+                          onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                         >
-                          <Eye className="h-4 w-4 text-[#6c63ff]" />
-                          Submissions
+                          View Results
                         </Link>
-                        <Link
-                          to={`/analytics/${exam.id}`}
-                          className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#6c63ff]/10 hover:bg-[#6c63ff]/20 border border-[#6c63ff]/20 py-2 text-sm font-semibold text-white transition-colors"
-                        >
-                          <BarChart2 className="h-4 w-4 text-[#6c63ff]" />
-                          Analytics
-                        </Link>
-                      </div>
-                    )}
-
-                    <button
-                      onClick={() => deleteExamMutation.mutate(exam.id)}
-                      className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-red-500/5 hover:bg-red-500/15 border border-red-500/10 py-2 text-sm font-semibold text-[#ef4444] transition-colors cursor-pointer"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete Exam
-                    </button>
-                  </>
-                )}
-
-                {isStudent && (
-                  <>
-                    {exam.status === "active" && (
-                      <Link
-                        to={`/take-exam/${exam.id}`}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-[#6c63ff] hover:bg-[#5a52e0] py-2 font-semibold text-white transition-colors"
-                      >
-                        <Play className="h-4 w-4" />
-                        Attempt Exam
-                      </Link>
-                    )}
-                    {(exam.status === "completed" || exam.status === "evaluated") && (
-                      <Link
-                        to={`/results/${exam.id}`}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-lg bg-[#6c63ff]/15 hover:bg-[#6c63ff]/25 border border-[#6c63ff]/20 py-2 font-semibold text-white transition-colors"
-                      >
-                        <Eye className="h-4 w-4 text-[#6c63ff]" />
-                        View Scorecard
-                      </Link>
-                    )}
-                  </>
-                )}
+                      )}
+                    </>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
-        <div className="text-center text-[#94a3b8] py-12 glass-card rounded-xl">
-          No examinations exist at the moment.
+        <div style={{
+          textAlign: "center", padding: "48px 24px", background: "#FFFFFF",
+          border: "1px solid #E2E8F0", borderRadius: 8, color: "#718096", fontSize: 14,
+        }}>
+          No examinations yet. Create your first exam to get started.
         </div>
       )}
 
       {showCreateModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 z-50">
-          <div className="w-full max-w-lg glass-card rounded-2xl p-8 border border-[#6c63ff]/20 max-h-[90vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-white mb-6">Create New Examination</h3>
-            <form onSubmit={handleCreateExam} className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#94a3b8] mb-2">
-                    Title
-                  </label>
-                  <input
-                    type="text"
-                    value={newExam.title}
-                    onChange={(e) => setNewExam({ ...newExam, title: e.target.value })}
-                    className="w-full rounded-lg border border-[#2d2d4a] bg-[#12121a] px-3 py-2 text-sm text-white focus:border-[#6c63ff] focus:outline-none"
-                    placeholder="Midterm Exam"
-                    required
-                  />
+        <div style={{
+          position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center",
+          background: "rgba(0,0,0,0.5)", zIndex: 100, padding: 16,
+        }}>
+          <div style={{
+            width: "100%", maxWidth: 560, background: "#FFFFFF", borderRadius: 12,
+            boxShadow: "0 20px 60px rgba(0,0,0,0.15)", padding: 32, maxHeight: "90vh", overflowY: "auto",
+          }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <h3 style={{ fontSize: 18, fontWeight: 600, color: "#1A202C" }}>Create Examination</h3>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                style={{ background: "none", border: "none", fontSize: 20, color: "#718096", cursor: "pointer" }}
+              >✕</button>
+            </div>
+            <form onSubmit={handleCreateExam}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div>
+                    <label style={labelStyle}>Title</label>
+                    <input type="text" value={newExam.title} onChange={(e) => setNewExam({ ...newExam, title: e.target.value })}
+                      style={inputStyle} placeholder="Midterm Exam" required
+                      onFocus={(e) => e.target.style.borderColor = "#4A90E2"} onBlur={(e) => e.target.style.borderColor = "#E2E8F0"} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Subject</label>
+                    <input type="text" value={newExam.subject} onChange={(e) => setNewExam({ ...newExam, subject: e.target.value })}
+                      style={inputStyle} placeholder="Database Systems" required
+                      onFocus={(e) => e.target.style.borderColor = "#4A90E2"} onBlur={(e) => e.target.style.borderColor = "#E2E8F0"} />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#94a3b8] mb-2">
-                    Subject
-                  </label>
-                  <input
-                    type="text"
-                    value={newExam.subject}
-                    onChange={(e) => setNewExam({ ...newExam, subject: e.target.value })}
-                    className="w-full rounded-lg border border-[#2d2d4a] bg-[#12121a] px-3 py-2 text-sm text-white focus:border-[#6c63ff] focus:outline-none"
-                    placeholder="Database Systems"
-                    required
-                  />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div>
+                    <label style={labelStyle}>Exam Type</label>
+                    <select value={newExam.exam_type} onChange={(e) => setNewExam({ ...newExam, exam_type: e.target.value })}
+                      style={{ ...inputStyle, cursor: "pointer" }}>
+                      <option value="quiz">Quiz</option>
+                      <option value="cp">CP</option>
+                      <option value="assignment">Assignment</option>
+                      <option value="mid">Midterm</option>
+                      <option value="final">Final Exam</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Section</label>
+                    <select value={newExam.section_id} onChange={(e) => setNewExam({ ...newExam, section_id: e.target.value })}
+                      style={{ ...inputStyle, cursor: "pointer" }} required>
+                      <option value="">Select Section</option>
+                      {sections.map((sec) => <option key={sec.id} value={sec.id}>{sec.name}</option>)}
+                    </select>
+                  </div>
                 </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#94a3b8] mb-2">
-                    Exam Type
-                  </label>
-                  <select
-                    value={newExam.exam_type}
-                    onChange={(e) => setNewExam({ ...newExam, exam_type: e.target.value })}
-                    className="w-full rounded-lg border border-[#2d2d4a] bg-[#12121a] px-3 py-2 text-sm text-white focus:border-[#6c63ff] focus:outline-none"
-                  >
-                    <option value="quiz">Quiz</option>
-                    <option value="cp">CP</option>
-                    <option value="assignment">Assignment</option>
-                    <option value="mid">Midterm</option>
-                    <option value="final">Final Exam</option>
-                  </select>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div>
+                    <label style={labelStyle}>Duration (min)</label>
+                    <input type="number" value={newExam.duration_minutes} onChange={(e) => setNewExam({ ...newExam, duration_minutes: e.target.value })}
+                      style={inputStyle} min="1" required
+                      onFocus={(e) => e.target.style.borderColor = "#4A90E2"} onBlur={(e) => e.target.style.borderColor = "#E2E8F0"} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Total Marks</label>
+                    <input type="number" value={newExam.total_marks} onChange={(e) => setNewExam({ ...newExam, total_marks: e.target.value })}
+                      style={inputStyle} min="1" required
+                      onFocus={(e) => e.target.style.borderColor = "#4A90E2"} onBlur={(e) => e.target.style.borderColor = "#E2E8F0"} />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#94a3b8] mb-2">
-                    Target Section
-                  </label>
-                  <select
-                    value={newExam.section_id}
-                    onChange={(e) => setNewExam({ ...newExam, section_id: e.target.value })}
-                    className="w-full rounded-lg border border-[#2d2d4a] bg-[#12121a] px-3 py-2 text-sm text-white focus:border-[#6c63ff] focus:outline-none"
-                    required
-                  >
-                    <option value="">Select Section</option>
-                    {sections.map((sec) => (
-                      <option key={sec.id} value={sec.id}>
-                        {sec.name}
-                      </option>
-                    ))}
-                  </select>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <div>
+                    <label style={labelStyle}>Start Time</label>
+                    <input type="datetime-local" value={newExam.start_time} onChange={(e) => setNewExam({ ...newExam, start_time: e.target.value })}
+                      style={inputStyle} required
+                      onFocus={(e) => e.target.style.borderColor = "#4A90E2"} onBlur={(e) => e.target.style.borderColor = "#E2E8F0"} />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>End Time</label>
+                    <input type="datetime-local" value={newExam.end_time} onChange={(e) => setNewExam({ ...newExam, end_time: e.target.value })}
+                      style={inputStyle} required
+                      onFocus={(e) => e.target.style.borderColor = "#4A90E2"} onBlur={(e) => e.target.style.borderColor = "#E2E8F0"} />
+                  </div>
                 </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#94a3b8] mb-2">
-                    Duration (Minutes)
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input type="checkbox" id="exam-randomize" checked={newExam.is_randomized}
+                    onChange={(e) => setNewExam({ ...newExam, is_randomized: e.target.checked })}
+                    style={{ width: 16, height: 16, cursor: "pointer" }} />
+                  <label htmlFor="exam-randomize" style={{ fontSize: 14, color: "#4A5568", cursor: "pointer" }}>
+                    Randomize question order
                   </label>
-                  <input
-                    type="number"
-                    value={newExam.duration_minutes}
-                    onChange={(e) => setNewExam({ ...newExam, duration_minutes: e.target.value })}
-                    className="w-full rounded-lg border border-[#2d2d4a] bg-[#12121a] px-3 py-2 text-sm text-white focus:border-[#6c63ff] focus:outline-none"
-                    min="1"
-                    required
-                  />
                 </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#94a3b8] mb-2">
-                    Total Marks
-                  </label>
-                  <input
-                    type="number"
-                    value={newExam.total_marks}
-                    onChange={(e) => setNewExam({ ...newExam, total_marks: e.target.value })}
-                    className="w-full rounded-lg border border-[#2d2d4a] bg-[#12121a] px-3 py-2 text-sm text-white focus:border-[#6c63ff] focus:outline-none"
-                    min="1"
-                    required
-                  />
+                <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+                  <button type="button" onClick={() => setShowCreateModal(false)}
+                    style={{ flex: 1, padding: "10px 16px", borderRadius: 6, border: "1px solid #E2E8F0", background: "#FFFFFF", color: "#4A5568", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={createExamMutation.isPending}
+                    style={{ flex: 1, padding: "10px 16px", borderRadius: 6, border: "none", background: "#4A90E2", color: "#FFFFFF", fontSize: 14, fontWeight: 600, cursor: createExamMutation.isPending ? "not-allowed" : "pointer", opacity: createExamMutation.isPending ? 0.6 : 1 }}>
+                    {createExamMutation.isPending ? "Creating..." : "Create Exam"}
+                  </button>
                 </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#94a3b8] mb-2">
-                    Start Time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={newExam.start_time}
-                    onChange={(e) => setNewExam({ ...newExam, start_time: e.target.value })}
-                    className="w-full rounded-lg border border-[#2d2d4a] bg-[#12121a] px-3 py-2 text-sm text-white focus:border-[#6c63ff] focus:outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-[#94a3b8] mb-2">
-                    End Time
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={newExam.end_time}
-                    onChange={(e) => setNewExam({ ...newExam, end_time: e.target.value })}
-                    className="w-full rounded-lg border border-[#2d2d4a] bg-[#12121a] px-3 py-2 text-sm text-white focus:border-[#6c63ff] focus:outline-none"
-                    required
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 py-2">
-                <input
-                  type="checkbox"
-                  id="random"
-                  checked={newExam.is_randomized}
-                  onChange={(e) => setNewExam({ ...newExam, is_randomized: e.target.checked })}
-                  className="rounded border-[#2d2d4a] text-[#6c63ff] focus:ring-[#6c63ff] bg-[#12121a] h-4 w-4"
-                />
-                <label htmlFor="random" className="text-sm text-[#94a3b8] select-none cursor-pointer">
-                  Randomize Question Order for Students
-                </label>
-              </div>
-
-              <div className="flex gap-4 mt-6">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="flex-1 rounded-lg border border-[#2d2d4a] text-[#94a3b8] hover:bg-[#2d2d4a]/30 py-2.5 font-semibold transition-colors cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={createExamMutation.isPending}
-                  className="flex-1 rounded-lg bg-[#6c63ff] hover:bg-[#5a52e0] py-2.5 font-semibold text-white transition-colors cursor-pointer disabled:opacity-50"
-                >
-                  Create
-                </button>
               </div>
             </form>
           </div>

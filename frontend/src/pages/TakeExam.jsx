@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import api from "../api/api";
-import { Shield, AlertTriangle, ChevronLeft, ChevronRight, CheckSquare } from "lucide-react";
 
 const TakeExam = () => {
   const { id: examId } = useParams();
@@ -74,7 +73,7 @@ const TakeExam = () => {
     },
     onSuccess: (data) => {
       setWarnings(data.warning_count);
-      if (data.warning_count >= 3) {
+      if (data.warning_count >= 2) {
         handleAutoSubmit("Anti-cheat violation limit reached.");
       }
     },
@@ -179,7 +178,7 @@ const TakeExam = () => {
 
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) {
-        setWarningMsg("Warnings: Fullscreen exited!");
+        setWarningMsg("Fullscreen exited!");
         logCheatingMutation.mutate({
           eventType: "fullscreen_exit",
           eventData: "Exited fullscreen mode",
@@ -189,7 +188,7 @@ const TakeExam = () => {
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        setWarningMsg("Warnings: Tab switch detected!");
+        setWarningMsg("Tab switch detected!");
         logCheatingMutation.mutate({
           eventType: "tab_switch",
           eventData: "Switched tab/minimized window",
@@ -205,7 +204,7 @@ const TakeExam = () => {
         (e.key === "c" || e.key === "v" || e.key === "a" || e.key === "x" || e.key === "i")
       ) {
         e.preventDefault();
-        setWarningMsg("Action blocked: Copy/Paste/Select All disabled.");
+        setWarningMsg("Copy/Paste/Select All disabled.");
         logCheatingMutation.mutate({
           eventType: "key_violation",
           eventData: `Pressed Ctrl+${e.key}`,
@@ -213,9 +212,7 @@ const TakeExam = () => {
       }
     };
 
-    const handleCopyPaste = (e) => {
-      e.preventDefault();
-    };
+    const handleCopyPaste = (e) => e.preventDefault();
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -240,40 +237,120 @@ const TakeExam = () => {
     return `${mins.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
+  const isTimeLow = timeLeft > 0 && timeLeft <= 300;
+
   if (!examStarted) {
     return (
-      <div className="max-w-2xl mx-auto glass-card rounded-xl p-8 space-y-6 text-center">
-        <Shield className="h-16 w-16 text-[#6c63ff] mx-auto opacity-90" />
-        <div>
-          <h1 className="text-3xl font-bold text-white mb-2">{exam?.title}</h1>
-          <p className="text-sm text-[#94a3b8]">{exam?.subject}</p>
-        </div>
+      <div style={{
+        minHeight: "100vh",
+        background: "#F7F8FC",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        fontFamily: "'Inter', sans-serif",
+      }}>
+        <div style={{
+          maxWidth: 560,
+          width: "100%",
+          background: "#FFFFFF",
+          border: "1px solid #E2E8F0",
+          borderRadius: 12,
+          boxShadow: "0 4px 20px rgba(0,0,0,0.08)",
+          padding: 40,
+          textAlign: "center",
+        }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: "50%",
+            background: "#EBF4FF", display: "flex", alignItems: "center", justifyContent: "center",
+            margin: "0 auto 24px", fontSize: 28,
+          }}>
+            🛡️
+          </div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: "#1A202C", marginBottom: 8 }}>
+            {exam?.title}
+          </h1>
+          <p style={{ fontSize: 14, color: "#718096", marginBottom: 24 }}>{exam?.subject}</p>
 
-        <div className="bg-[#12121a] border border-[#2d2d4a] rounded-lg p-6 text-left space-y-4">
-          <h3 className="font-bold text-white">Academic Integrity Rules:</h3>
-          <ul className="list-disc list-inside text-sm text-[#94a3b8] space-y-2">
-            <li>The examination environment is locked to Fullscreen Mode.</li>
-            <li>Exiting fullscreen or switching windows/tabs will trigger automatic logs.</li>
-            <li>Clipboard operations (Copy, Paste, Cut) are fully disabled.</li>
-            <li>After 3 warnings, the system will automatically submit your exam.</li>
-            <li>Your progress is auto-saved every 30 seconds.</li>
-          </ul>
-        </div>
+          <div style={{
+            display: "flex", justifyContent: "center", gap: 32, marginBottom: 24,
+            padding: "16px 0", borderTop: "1px solid #E2E8F0", borderBottom: "1px solid #E2E8F0",
+          }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: "#718096", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 }}>Duration</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#1A202C" }}>{exam?.duration_minutes} min</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: "#718096", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 }}>Total Marks</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#1A202C" }}>{exam?.total_marks}</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 11, color: "#718096", textTransform: "uppercase", fontWeight: 600, marginBottom: 4 }}>Max Warnings</div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: "#E53E3E" }}>2</div>
+            </div>
+          </div>
 
-        <button
-          onClick={handleStartExam}
-          className="w-full rounded-lg bg-[#6c63ff] hover:bg-[#5a52e0] py-3.5 font-bold text-white transition-colors cursor-pointer"
-        >
-          I Understand, Begin Exam
-        </button>
+          <div style={{
+            background: "#FFF5F5",
+            border: "1px solid #FED7D7",
+            borderRadius: 8,
+            padding: "16px 20px",
+            textAlign: "left",
+            marginBottom: 24,
+          }}>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "#E53E3E", marginBottom: 10 }}>
+              ⚠️ Academic Integrity Rules
+            </div>
+            <ul style={{ listStyleType: "disc", paddingLeft: 20, display: "flex", flexDirection: "column", gap: 6 }}>
+              {[
+                "Examination locks to fullscreen mode.",
+                "Exiting fullscreen or switching tabs triggers a warning.",
+                "Copy, Paste, Cut, Select All are disabled.",
+                "After 2 warnings, exam is auto-submitted.",
+                "Your answers are auto-saved every 30 seconds.",
+              ].map((rule) => (
+                <li key={rule} style={{ fontSize: 13, color: "#4A5568", lineHeight: 1.5 }}>{rule}</li>
+              ))}
+            </ul>
+          </div>
+
+          <button
+            onClick={handleStartExam}
+            style={{
+              width: "100%",
+              padding: "14px 16px",
+              borderRadius: 8,
+              border: "none",
+              background: "#4A90E2",
+              color: "#FFFFFF",
+              fontSize: 16,
+              fontWeight: 700,
+              cursor: "pointer",
+              transition: "background 0.2s",
+            }}
+            onMouseEnter={(e) => e.target.style.background = "#2C5F8A"}
+            onMouseLeave={(e) => e.target.style.background = "#4A90E2"}
+          >
+            I Understand — Begin Exam
+          </button>
+        </div>
       </div>
     );
   }
 
   if (questionsLoading) {
     return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-[#6c63ff]"></div>
+      <div style={{
+        minHeight: "100vh", background: "#F7F8FC",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        <div style={{
+          width: 40, height: 40,
+          border: "3px solid #E2E8F0",
+          borderTopColor: "#4A90E2",
+          borderRadius: "50%",
+          animation: "spin 0.8s linear infinite",
+        }} />
       </div>
     );
   }
@@ -281,129 +358,240 @@ const TakeExam = () => {
   const currentQuestion = questions[currentQuestionIdx];
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between glass-card rounded-xl px-6 py-4">
+    <div style={{
+      minHeight: "100vh",
+      background: "#F7F8FC",
+      fontFamily: "'Inter', sans-serif",
+    }}>
+      <div style={{
+        position: "sticky", top: 0, zIndex: 50,
+        background: "#FFFFFF",
+        borderBottom: "1px solid #E2E8F0",
+        boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
+        padding: "0 24px",
+        height: 60,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+      }}>
         <div>
-          <h2 className="text-lg font-bold text-white">{exam?.title}</h2>
-          <span className="text-sm text-[#94a3b8]">
+          <div style={{ fontSize: 15, fontWeight: 700, color: "#1A202C" }}>{exam?.title}</div>
+          <div style={{ fontSize: 12, color: "#718096" }}>
             Question {currentQuestionIdx + 1} of {questions.length}
-          </span>
+          </div>
         </div>
-        <div className="flex items-center gap-6">
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
           {warningMsg && (
-            <div className="flex items-center gap-1.5 bg-red-500/10 border border-red-500/20 text-[#ef4444] px-3 py-1.5 rounded-lg text-xs font-semibold animate-pulse">
-              <AlertTriangle className="h-4 w-4" />
-              <span>
-                Warnings: {warnings}/3
-              </span>
+            <div style={{
+              display: "flex", alignItems: "center", gap: 6,
+              padding: "4px 12px", borderRadius: 6,
+              background: "#FFF5F5", border: "1px solid #FED7D7",
+              fontSize: 12, fontWeight: 600, color: "#E53E3E",
+            }}>
+              ⚠️ {warnings}/2 Warnings
             </div>
           )}
-          <div className="text-right">
-            <span className="text-xs text-[#94a3b8] block uppercase tracking-wider font-semibold">
-              Time Remaining
-            </span>
-            <span className="text-2xl font-mono font-bold text-white">{formatTime(timeLeft)}</span>
+          <div style={{
+            textAlign: "right",
+            padding: "6px 16px",
+            borderRadius: 8,
+            background: isTimeLow ? "#FFF5F5" : "#F7F8FC",
+            border: `1px solid ${isTimeLow ? "#FED7D7" : "#E2E8F0"}`,
+          }}>
+            <div style={{ fontSize: 10, color: "#718096", textTransform: "uppercase", fontWeight: 600, letterSpacing: "0.05em" }}>
+              Time Left
+            </div>
+            <div style={{
+              fontSize: 20, fontWeight: 700, fontFamily: "monospace",
+              color: isTimeLow ? "#E53E3E" : "#1A202C",
+            }}>
+              {formatTime(timeLeft)}
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-4">
-        <div className="glass-card rounded-xl p-6 md:col-span-3 space-y-6">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold uppercase tracking-wider text-[#94a3b8]">
-              Marks: {currentQuestion?.marks} | Difficulty: {currentQuestion?.difficulty}
+      <div style={{
+        maxWidth: 1100,
+        margin: "0 auto",
+        padding: 24,
+        display: "grid",
+        gridTemplateColumns: "1fr 200px",
+        gap: 24,
+        alignItems: "start",
+      }}>
+        <div style={{
+          background: "#FFFFFF",
+          border: "1px solid #E2E8F0",
+          borderRadius: 8,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+          padding: 28,
+        }}>
+          <div style={{
+            display: "flex", gap: 8, marginBottom: 16, fontSize: 12, color: "#718096",
+          }}>
+            <span style={{ padding: "2px 8px", borderRadius: 4, background: "#F7F8FC", fontWeight: 600 }}>
+              {currentQuestion?.marks} marks
+            </span>
+            <span style={{ padding: "2px 8px", borderRadius: 4, background: "#F7F8FC", fontWeight: 600, textTransform: "capitalize" }}>
+              {currentQuestion?.difficulty}
+            </span>
+            <span style={{ padding: "2px 8px", borderRadius: 4, background: "#F7F8FC", fontWeight: 600 }}>
+              {currentQuestion?.question_type === "mcq" ? "MCQ" : "Subjective"}
             </span>
           </div>
 
-          <h3 className="text-xl text-white font-semibold leading-relaxed">
+          <h3 style={{ fontSize: 18, fontWeight: 600, color: "#1A202C", lineHeight: 1.6, marginBottom: 24 }}>
             {currentQuestion?.question_text}
           </h3>
 
-          <div className="pt-4">
-            {currentQuestion?.question_type === "mcq" ? (
-              <div className="space-y-3">
-                {currentQuestion.options.map((opt) => {
-                  const isSelected = localAnswers[currentQuestion.id]?.optId === opt.id;
-                  return (
-                    <div
-                      key={opt.id}
-                      onClick={() => handleOptionSelect(currentQuestion.id, opt.id)}
-                      className={`rounded-lg border p-4 flex items-center justify-between cursor-pointer transition-all ${
-                        isSelected
-                          ? "border-[#6c63ff] bg-[#6c63ff]/10"
-                          : "border-[#2d2d4a] bg-[#12121a] hover:border-[#6c63ff]/50"
-                      }`}
-                    >
-                      <span className="text-sm text-[#e2e8f0]">{opt.option_text}</span>
-                      <div
-                        className={`h-4 w-4 rounded-full border flex items-center justify-center ${
-                          isSelected ? "border-[#6c63ff]" : "border-[#2d2d4a]"
-                        }`}
-                      >
-                        {isSelected && <div className="h-2 w-2 rounded-full bg-[#6c63ff]" />}
-                      </div>
+          {currentQuestion?.question_type === "mcq" ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {currentQuestion.options.map((opt) => {
+                const isSelected = localAnswers[currentQuestion.id]?.optId === opt.id;
+                return (
+                  <div
+                    key={opt.id}
+                    onClick={() => handleOptionSelect(currentQuestion.id, opt.id)}
+                    style={{
+                      padding: "14px 16px",
+                      borderRadius: 8,
+                      border: `2px solid ${isSelected ? "#4A90E2" : "#E2E8F0"}`,
+                      background: isSelected ? "#EBF4FF" : "#FFFFFF",
+                      cursor: "pointer",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      transition: "all 0.2s",
+                    }}
+                    onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.borderColor = "#93B8E4"; }}
+                    onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.borderColor = "#E2E8F0"; }}
+                  >
+                    <span style={{ fontSize: 14, color: "#1A202C" }}>{opt.option_text}</span>
+                    <div style={{
+                      width: 20, height: 20, borderRadius: "50%",
+                      border: `2px solid ${isSelected ? "#4A90E2" : "#E2E8F0"}`,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      flexShrink: 0,
+                    }}>
+                      {isSelected && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#4A90E2" }} />}
                     </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <textarea
-                value={localAnswers[currentQuestion?.id]?.text || ""}
-                onChange={(e) => handleTextChange(currentQuestion.id, e.target.value)}
-                onBlur={() => handleTextBlur(currentQuestion.id)}
-                className="w-full h-64 rounded-lg border border-[#2d2d4a] bg-[#12121a] p-4 text-white placeholder-[#94a3b8]/40 focus:border-[#6c63ff] focus:outline-none resize-none font-mono text-sm leading-relaxed"
-                placeholder="Write your explanation here..."
-              />
-            )}
-          </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <textarea
+              value={localAnswers[currentQuestion?.id]?.text || ""}
+              onChange={(e) => handleTextChange(currentQuestion.id, e.target.value)}
+              onBlur={() => handleTextBlur(currentQuestion.id)}
+              style={{
+                width: "100%",
+                height: 240,
+                padding: 16,
+                border: "1px solid #E2E8F0",
+                borderRadius: 8,
+                fontSize: 14,
+                color: "#1A202C",
+                background: "#FFFFFF",
+                outline: "none",
+                resize: "none",
+                lineHeight: 1.7,
+                fontFamily: "'Inter', sans-serif",
+                transition: "border-color 0.2s",
+              }}
+              placeholder="Write your answer here..."
+              onFocus={(e) => e.target.style.borderColor = "#4A90E2"}
+            />
+          )}
 
-          <div className="flex items-center justify-between border-t border-[#2d2d4a]/50 pt-6">
+          <div style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            borderTop: "1px solid #E2E8F0", paddingTop: 20, marginTop: 24,
+          }}>
             <button
               onClick={() => setCurrentQuestionIdx((prev) => Math.max(0, prev - 1))}
               disabled={currentQuestionIdx === 0}
-              className="flex items-center gap-1.5 rounded-lg border border-[#2d2d4a] text-[#94a3b8] hover:text-white px-4 py-2 font-semibold text-sm transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "10px 20px", borderRadius: 6,
+                border: "1px solid #E2E8F0", background: "#FFFFFF",
+                color: currentQuestionIdx === 0 ? "#A0AEC0" : "#4A5568",
+                fontSize: 14, fontWeight: 600,
+                cursor: currentQuestionIdx === 0 ? "not-allowed" : "pointer",
+                opacity: currentQuestionIdx === 0 ? 0.5 : 1,
+              }}
             >
-              <ChevronLeft className="h-4 w-4" />
-              Previous
+              ← Previous
             </button>
             {currentQuestionIdx < questions.length - 1 ? (
               <button
                 onClick={() => setCurrentQuestionIdx((prev) => prev + 1)}
-                className="flex items-center gap-1.5 rounded-lg bg-[#6c63ff] hover:bg-[#5a52e0] px-4 py-2 font-semibold text-sm text-white transition-colors cursor-pointer"
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "10px 20px", borderRadius: 6, border: "none",
+                  background: "#4A90E2", color: "#FFFFFF",
+                  fontSize: 14, fontWeight: 600, cursor: "pointer",
+                  transition: "background 0.2s",
+                }}
+                onMouseEnter={(e) => e.target.style.background = "#2C5F8A"}
+                onMouseLeave={(e) => e.target.style.background = "#4A90E2"}
               >
-                Next
-                <ChevronRight className="h-4 w-4" />
+                Next →
               </button>
             ) : (
               <button
                 onClick={handleManualSubmit}
                 disabled={submitMutation.isPending}
-                className="flex items-center gap-1.5 rounded-lg bg-[#10b981] hover:bg-[#059669] px-5 py-2 font-semibold text-sm text-white transition-colors cursor-pointer"
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "10px 24px", borderRadius: 6, border: "none",
+                  background: "#38A169", color: "#FFFFFF",
+                  fontSize: 14, fontWeight: 700, cursor: "pointer",
+                  transition: "background 0.2s",
+                }}
+                onMouseEnter={(e) => e.target.style.background = "#2F855A"}
+                onMouseLeave={(e) => e.target.style.background = "#38A169"}
               >
-                <CheckSquare className="h-4 w-4" />
-                Submit Exam
+                ✅ Submit Exam
               </button>
             )}
           </div>
         </div>
 
-        <div className="glass-card rounded-xl p-6 space-y-6 h-fit">
-          <h4 className="font-bold text-white">Questions Nav</h4>
-          <div className="grid grid-cols-4 gap-2">
+        <div style={{
+          background: "#FFFFFF",
+          border: "1px solid #E2E8F0",
+          borderRadius: 8,
+          boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
+          padding: 16,
+          position: "sticky",
+          top: 84,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#1A202C", marginBottom: 12 }}>
+            Questions
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
             {questions.map((q, idx) => {
               const isAnswered =
                 localAnswers[q.id]?.optId || (localAnswers[q.id]?.text && localAnswers[q.id].text.trim());
+              const isCurrent = idx === currentQuestionIdx;
               return (
                 <button
                   key={q.id}
                   onClick={() => setCurrentQuestionIdx(idx)}
-                  className={`h-10 rounded-lg font-mono font-bold text-xs border flex items-center justify-center transition-all cursor-pointer ${
-                    idx === currentQuestionIdx
-                      ? "border-[#6c63ff] bg-[#6c63ff]/10 text-white"
-                      : isAnswered
-                      ? "border-emerald-500/30 bg-emerald-500/5 text-[#10b981]"
-                      : "border-[#2d2d4a] bg-[#12121a] text-[#94a3b8] hover:border-[#6c63ff]/30"
-                  }`}
+                  style={{
+                    width: "100%",
+                    height: 36,
+                    borderRadius: 6,
+                    border: `1px solid ${isCurrent ? "#4A90E2" : isAnswered ? "#C6F6D5" : "#E2E8F0"}`,
+                    background: isCurrent ? "#EBF4FF" : isAnswered ? "#F0FFF4" : "#FFFFFF",
+                    color: isCurrent ? "#4A90E2" : isAnswered ? "#38A169" : "#718096",
+                    fontSize: 12,
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    transition: "all 0.15s",
+                  }}
                 >
                   {idx + 1}
                 </button>
