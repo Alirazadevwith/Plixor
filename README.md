@@ -2,7 +2,6 @@
 ### AI-Powered Examination & Answer Evaluation Platform
 
 > Automated grading. Proctored exams. Intelligent analytics. Built for the modern classroom.
-
 ---
 
 ## Overview
@@ -176,7 +175,6 @@ PLIXOR manages 14 domain models:
 - Add SPA rewrite rule: all routes → `index.html`
 
 ---
-
 ## License
 
 This project is proprietary. All rights reserved.
