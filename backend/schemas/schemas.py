@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, model_validator
 from models.enums import (
     UserRole,
     ExamType,
@@ -11,6 +11,27 @@ from models.enums import (
     Difficulty,
     BloomLevel,
 )
+
+
+class SafeResponseModel(BaseModel):
+    model_config = {"from_attributes": True}
+
+    @model_validator(mode="before")
+    @classmethod
+    def prevent_lazy_loading(cls, data):
+        if hasattr(data, "_sa_instance_state"):
+            from sqlalchemy import inspect
+            state = inspect(data)
+            result = {}
+            for field_name in cls.model_fields.keys():
+                if field_name in state.unloaded:
+                    continue
+                try:
+                    result[field_name] = getattr(data, field_name)
+                except AttributeError:
+                    continue
+            return result
+        return data
 
 
 class UserRegister(BaseModel):
@@ -25,15 +46,13 @@ class UserLogin(BaseModel):
     password: str
 
 
-class UserResponse(BaseModel):
+class UserResponse(SafeResponseModel):
     id: uuid.UUID
     email: EmailStr
     role: UserRole
     full_name: str
     is_active: bool
     created_at: datetime
-
-    model_config = {"from_attributes": True}
 
 
 class UserUpdate(BaseModel):
@@ -54,15 +73,13 @@ class SectionCreate(BaseModel):
     semester: str = Field(min_length=1)
 
 
-class SectionResponse(BaseModel):
+class SectionResponse(SafeResponseModel):
     id: uuid.UUID
     name: str
     department: str
     semester: str
     teacher_id: uuid.UUID
     created_at: datetime
-
-    model_config = {"from_attributes": True}
 
 
 class StudentCreate(BaseModel):
@@ -74,7 +91,7 @@ class StudentCreate(BaseModel):
     semester: str = Field(min_length=1)
 
 
-class StudentResponse(BaseModel):
+class StudentResponse(SafeResponseModel):
     id: uuid.UUID
     user_id: uuid.UUID
     roll_number: str
@@ -83,8 +100,6 @@ class StudentResponse(BaseModel):
     semester: str
     user: Optional[UserResponse] = None
 
-    model_config = {"from_attributes": True}
-
 
 class MCQOptionCreate(BaseModel):
     option_text: str = Field(min_length=1)
@@ -92,13 +107,11 @@ class MCQOptionCreate(BaseModel):
     option_order: int
 
 
-class MCQOptionResponse(BaseModel):
+class MCQOptionResponse(SafeResponseModel):
     id: uuid.UUID
     option_text: str
     is_correct: bool
     option_order: int
-
-    model_config = {"from_attributes": True}
 
 
 class RubricCriterionCreate(BaseModel):
@@ -109,15 +122,13 @@ class RubricCriterionCreate(BaseModel):
     weight: float = Field(gt=0, le=1)
 
 
-class RubricCriterionResponse(BaseModel):
+class RubricCriterionResponse(SafeResponseModel):
     id: uuid.UUID
     criterion_name: str
     description: str
     keywords: str
     marks: float
     weight: float
-
-    model_config = {"from_attributes": True}
 
 
 class QuestionCreate(BaseModel):
@@ -132,7 +143,7 @@ class QuestionCreate(BaseModel):
     rubrics: Optional[List[RubricCriterionCreate]] = None
 
 
-class QuestionResponse(BaseModel):
+class QuestionResponse(SafeResponseModel):
     id: uuid.UUID
     exam_id: uuid.UUID
     question_type: QuestionType
@@ -144,8 +155,6 @@ class QuestionResponse(BaseModel):
     order_index: int
     options: List[MCQOptionResponse] = []
     rubrics: List[RubricCriterionResponse] = []
-
-    model_config = {"from_attributes": True}
 
 
 class ExamCreate(BaseModel):
@@ -160,7 +169,7 @@ class ExamCreate(BaseModel):
     is_randomized: bool = False
 
 
-class ExamResponse(BaseModel):
+class ExamResponse(SafeResponseModel):
     id: uuid.UUID
     title: str
     subject: str
@@ -175,8 +184,6 @@ class ExamResponse(BaseModel):
     is_randomized: bool
     created_at: datetime
 
-    model_config = {"from_attributes": True}
-
 
 class StudentAnswerSave(BaseModel):
     question_id: uuid.UUID
@@ -184,17 +191,15 @@ class StudentAnswerSave(BaseModel):
     selected_option_id: Optional[uuid.UUID] = None
 
 
-class StudentAnswerResponse(BaseModel):
+class StudentAnswerResponse(SafeResponseModel):
     id: uuid.UUID
     question_id: uuid.UUID
     answer_text: Optional[str] = None
     selected_option_id: Optional[uuid.UUID] = None
     saved_at: datetime
 
-    model_config = {"from_attributes": True}
 
-
-class SubmissionResponse(BaseModel):
+class SubmissionResponse(SafeResponseModel):
     id: uuid.UUID
     exam_id: uuid.UUID
     student_id: uuid.UUID
@@ -204,8 +209,8 @@ class SubmissionResponse(BaseModel):
     total_score: Optional[float] = None
     warning_count: int = 0
     student: Optional[StudentResponse] = None
-
-    model_config = {"from_attributes": True}
+    answers: List[StudentAnswerResponse] = []
+    exam: Optional[ExamResponse] = None
 
 
 class SubmissionStartResponse(BaseModel):
@@ -225,7 +230,7 @@ class CheatingLogCreate(BaseModel):
     event_data: str = Field(min_length=1)
 
 
-class CheatingLogResponse(BaseModel):
+class CheatingLogResponse(SafeResponseModel):
     id: uuid.UUID
     submission_id: uuid.UUID
     event_type: str
@@ -233,35 +238,29 @@ class CheatingLogResponse(BaseModel):
     timestamp: datetime
     warning_count: int
 
-    model_config = {"from_attributes": True}
-
 
 class CheatingLogEventResponse(BaseModel):
     warning_count: int
     auto_submitted: bool
 
 
-class CriterionScoreResponse(BaseModel):
+class CriterionScoreResponse(SafeResponseModel):
     id: uuid.UUID
     criterion_id: uuid.UUID
     score: float
     feedback: str
     similarity_score: float
 
-    model_config = {"from_attributes": True}
 
-
-class MCQResultResponse(BaseModel):
+class MCQResultResponse(SafeResponseModel):
     id: uuid.UUID
     question_id: uuid.UUID
     is_correct: bool
     similarity_score: float
     explanation: str
 
-    model_config = {"from_attributes": True}
 
-
-class EvaluationResponse(BaseModel):
+class EvaluationResponse(SafeResponseModel):
     id: uuid.UUID
     submission_id: uuid.UUID
     evaluated_at: datetime
@@ -272,8 +271,6 @@ class EvaluationResponse(BaseModel):
     ragas_metrics: Optional[dict] = None
     criterion_scores: List[CriterionScoreResponse] = []
     mcq_results: List[MCQResultResponse] = []
-
-    model_config = {"from_attributes": True}
 
 
 class OverrideRequest(BaseModel):

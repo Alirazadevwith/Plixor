@@ -112,13 +112,48 @@ async def start_submission(
     )
 
 
+@router.get("/my", response_model=List[SubmissionResponse])
+async def get_my_submissions(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    if current_user.role != UserRole.student:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only students can access this endpoint",
+        )
+    
+    student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
+    student = student_result.scalar_one_or_none()
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Student profile not found"
+        )
+
+    subs_result = await db.execute(
+        select(Submission)
+        .where(Submission.student_id == student.id)
+        .options(selectinload(Submission.exam))
+        .order_by(Submission.started_at.desc())
+    )
+    return list(subs_result.scalars().all())
+
+
 @router.get("/{id}", response_model=SubmissionResponse)
 async def get_submission(
     id: uuid.UUID,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Submission).where(Submission.id == id))
+    result = await db.execute(
+        select(Submission)
+        .where(Submission.id == id)
+        .options(
+            selectinload(Submission.answers),
+            selectinload(Submission.exam),
+            selectinload(Submission.student).selectinload(Student.user)
+        )
+    )
     submission = result.scalar_one_or_none()
     if not submission:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
@@ -331,9 +366,9 @@ async def get_student_exam_submissions(
         )
 
     subs_result = await db.execute(
-        select(Submission).where(
-            Submission.exam_id == exam_id, Submission.student_id == student.id
-        )
+        select(Submission)
+        .where(Submission.exam_id == exam_id, Submission.student_id == student.id)
+        .options(selectinload(Submission.answers), selectinload(Submission.exam))
     )
     return list(subs_result.scalars().all())
 

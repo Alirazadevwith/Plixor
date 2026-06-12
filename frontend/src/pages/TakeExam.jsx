@@ -13,6 +13,8 @@ const TakeExam = () => {
   const [warnings, setWarnings] = useState(0);
   const [warningMsg, setWarningMsg] = useState("");
   const [timeLeft, setTimeLeft] = useState(0);
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [isViolationSubmit, setIsViolationSubmit] = useState(false);
   const timerRef = useRef(null);
 
   const { data: exam } = useQuery({
@@ -74,26 +76,41 @@ const TakeExam = () => {
     onSuccess: (data) => {
       setWarnings(data.warning_count);
       if (data.warning_count >= 2) {
-        handleAutoSubmit("Anti-cheat violation limit reached.");
+        handleAutoSubmit("Anti-cheat violation limit reached.", true);
       }
     },
   });
 
   const submitMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async ({ isAutoSubmit = false, isViolation = false } = {}) => {
       const info = {
         browser_info: navigator.userAgent,
         device_info: navigator.platform,
         ip_address: "127.0.0.1",
       };
       await api.post(`/submissions/${submissionId}/submit`, info);
+      return { isAutoSubmit, isViolation };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       if (document.fullscreenElement) {
         document.exitFullscreen().catch(() => {});
       }
       localStorage.removeItem(`exam_timer_${submissionId}`);
-      navigate(`/results/${examId}`);
+      
+      if (data.isViolation || isViolationSubmit) {
+        alert("Exam auto-submitted due to violations.");
+        navigate("/dashboard", { replace: true });
+      } else if (data.isAutoSubmit) {
+        alert("Exam auto-submitted: Time limit expired.");
+        navigate("/dashboard", { replace: true });
+      } else {
+        alert("Exam submitted successfully!");
+        navigate("/dashboard");
+      }
+    },
+    onError: (error) => {
+      console.error("Exam submission failed:", error);
+      alert(error.response?.data?.detail || "Failed to submit exam. Please try again.");
     },
   });
 
@@ -109,9 +126,11 @@ const TakeExam = () => {
     }
   };
 
-  const handleAutoSubmit = (reason) => {
-    alert(`Auto-submitting: ${reason}`);
-    submitMutation.mutate();
+  const handleAutoSubmit = (reason, isViolation = false) => {
+    if (isViolation) {
+      setIsViolationSubmit(true);
+    }
+    submitMutation.mutate({ isAutoSubmit: true, isViolation });
   };
 
   const handleManualSubmit = () => {
@@ -238,6 +257,28 @@ const TakeExam = () => {
   };
 
   const isTimeLow = timeLeft > 0 && timeLeft <= 300;
+
+  if (isViolationSubmit) {
+    return (
+      <div style={{
+        minHeight: "100vh",
+        background: "#F7F8FC",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+        fontFamily: "'Inter', sans-serif",
+        textAlign: "center"
+      }}>
+        <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: "#E53E3E", marginBottom: 12 }}>Exam Terminated</h2>
+        <p style={{ fontSize: 14, color: "#718096", maxWidth: 440, lineHeight: 1.6 }}>
+          Exam auto-submitted due to violations. Redirecting to dashboard...
+        </p>
+      </div>
+    );
+  }
 
   if (!examStarted) {
     return (
@@ -600,6 +641,41 @@ const TakeExam = () => {
           </div>
         </div>
       </div>
+
+      {showSubmitModal && (
+        <div style={{
+          position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
+          background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center",
+          justifyContent: "center", zIndex: 10000, fontFamily: "'Inter', sans-serif"
+        }}>
+          <div style={{
+            background: "#FFFFFF", borderRadius: 12, padding: 32,
+            maxWidth: 420, width: "90%", textAlign: "center",
+            boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)"
+          }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
+            <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1A202C", marginBottom: 12 }}>Submission Successful!</h2>
+            <p style={{ fontSize: 14, color: "#718096", marginBottom: 24, lineHeight: 1.5 }}>
+              Your exam has been submitted successfully.
+            </p>
+            <button
+              onClick={() => {
+                setShowSubmitModal(false);
+                navigate("/dashboard");
+              }}
+              style={{
+                width: "100%", padding: "12px 16px", borderRadius: 8, border: "none",
+                background: "#4A90E2", color: "#FFFFFF", fontSize: 14, fontWeight: 600,
+                cursor: "pointer", transition: "background 0.2s"
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = "#2C5F8A"}
+              onMouseLeave={e => e.currentTarget.style.background = "#4A90E2"}
+            >
+              Go to Dashboard
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

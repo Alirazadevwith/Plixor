@@ -11,6 +11,7 @@ api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
     if (token) {
+      config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -26,7 +27,7 @@ api.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      if (window.location.pathname !== "/login") {
+      if (window.location.pathname !== "/login" && window.location.pathname !== "/") {
         window.location.href = "/login";
       }
     }

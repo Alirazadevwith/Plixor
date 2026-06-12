@@ -189,9 +189,29 @@ async def get_exam_questions(
     questions = q_result.scalars().all()
 
     response = []
+    
+    hide_answers = False
+    if current_user.role == UserRole.student:
+        hide_answers = True
+        # Check if student has a completed submission
+        student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
+        student = student_result.scalar_one_or_none()
+        if student:
+            from models.models import Submission
+            from models.enums import SubmissionStatus
+            sub_res = await db.execute(
+                select(Submission).where(
+                    Submission.exam_id == id,
+                    Submission.student_id == student.id
+                )
+            )
+            submission = sub_res.scalar_one_or_none()
+            if submission and submission.status in [SubmissionStatus.submitted, SubmissionStatus.evaluated]:
+                hide_answers = False
+
     for q in questions:
         q_data = QuestionResponse.model_validate(q)
-        if current_user.role == UserRole.student:
+        if hide_answers:
             q_data.model_answer = None
             q_data.rubrics = []
             cleaned_options = []
@@ -201,7 +221,7 @@ async def get_exam_questions(
             q_data.options = cleaned_options
         response.append(q_data)
 
-    if current_user.role == UserRole.student and exam.is_randomized:
+    if hide_answers and exam.is_randomized:
         rng = random.Random(str(current_user.id) + str(exam.id))
         rng.shuffle(response)
 
@@ -259,6 +279,63 @@ async def add_question(
         .options(selectinload(Question.options), selectinload(Question.rubrics))
     )
     return q_res.scalar_one()
+
+
+@router.post("/{id}/questions/generate-ai", response_model=List[QuestionResponse])
+async def generate_questions_ai(
+    id: uuid.UUID,
+    config: QuestionGenerationConfig,
+    current_user: User = Depends(require_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    await verify_exam_owner(id, current_user, db)
+
+    generated = await ai_service.generate_questions(
+        topic=config.topic,
+        difficulty=config.difficulty,
+        bloom_level=config.bloom_level,
+        num_questions=config.num_questions,
+        marks=config.marks,
+    )
+
+    saved_questions = []
+    for g_q in generated:
+        question = Question(
+            exam_id=id,
+            question_type=g_q.question_type,
+            question_text=g_q.question_text,
+            model_answer=g_q.model_answer,
+            marks=g_q.marks,
+            difficulty=g_q.difficulty,
+            bloom_level=g_q.bloom_level,
+            order_index=1,
+        )
+        db.add(question)
+        await db.flush()
+
+        if g_q.question_type == QuestionType.mcq and g_q.options:
+            for idx, opt in enumerate(g_q.options):
+                option = MCQOption(
+                    question_id=question.id,
+                    option_text=opt.option_text,
+                    is_correct=opt.is_correct,
+                    option_order=idx + 1,
+                )
+                db.add(option)
+
+        saved_questions.append(question)
+
+    await db.flush()
+    ids = [sq.id for sq in saved_questions]
+    if not ids:
+        return []
+    q_res = await db.execute(
+        select(Question)
+        .where(Question.id.in_(ids))
+        .options(selectinload(Question.options), selectinload(Question.rubrics))
+    )
+    loaded_questions = {q.id: q for q in q_res.scalars().all()}
+    return [loaded_questions[qid] for qid in ids if qid in loaded_questions]
 
 
 @router.put("/{id}/questions/{qid}", response_model=QuestionResponse)
@@ -342,63 +419,6 @@ async def delete_question(
 
     await db.delete(question)
     await db.flush()
-
-
-@router.post("/{id}/questions/generate-ai", response_model=List[QuestionResponse])
-async def generate_questions_ai(
-    id: uuid.UUID,
-    config: QuestionGenerationConfig,
-    current_user: User = Depends(require_teacher),
-    db: AsyncSession = Depends(get_db),
-):
-    await verify_exam_owner(id, current_user, db)
-
-    generated = await ai_service.generate_questions(
-        topic=config.topic,
-        difficulty=config.difficulty,
-        bloom_level=config.bloom_level,
-        num_questions=config.num_questions,
-        marks=config.marks,
-    )
-
-    saved_questions = []
-    for g_q in generated:
-        question = Question(
-            exam_id=id,
-            question_type=g_q.question_type,
-            question_text=g_q.question_text,
-            model_answer=g_q.model_answer,
-            marks=g_q.marks,
-            difficulty=g_q.difficulty,
-            bloom_level=g_q.bloom_level,
-            order_index=1,
-        )
-        db.add(question)
-        await db.flush()
-
-        if g_q.question_type == QuestionType.mcq and g_q.options:
-            for idx, opt in enumerate(g_q.options):
-                option = MCQOption(
-                    question_id=question.id,
-                    option_text=opt.option_text,
-                    is_correct=opt.is_correct,
-                    option_order=idx + 1,
-                )
-                db.add(option)
-
-        saved_questions.append(question)
-
-    await db.flush()
-    ids = [sq.id for sq in saved_questions]
-    if not ids:
-        return []
-    q_res = await db.execute(
-        select(Question)
-        .where(Question.id.in_(ids))
-        .options(selectinload(Question.options), selectinload(Question.rubrics))
-    )
-    loaded_questions = {q.id: q for q in q_res.scalars().all()}
-    return [loaded_questions[qid] for qid in ids if qid in loaded_questions]
 
 
 @router.post("/{id}/questions/{qid}/generate-rubric", response_model=List[RubricCriterionResponse])

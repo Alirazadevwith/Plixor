@@ -24,7 +24,7 @@ class AIService:
         num_questions: int,
         marks: float,
     ) -> List[AIGeneratedQuestion]:
-        llm = ChatGroq(groq_api_key=settings.GROQ_API_KEY, model_name="llama-3.1-8b-instant")
+        llm = ChatGroq(groq_api_key=settings.GROQ_API_KEY, model_name="llama-3.3-70b-versatile")
         structured_llm = llm.with_structured_output(AIGeneratedQuestionList)
 
         prompt = (
@@ -44,7 +44,7 @@ class AIService:
     async def generate_rubric(
         self, question_text: str, model_answer: str, marks: float
     ) -> List[AIGeneratedRubricCriterion]:
-        llm = ChatGroq(groq_api_key=settings.GROQ_API_KEY, model_name="llama-3.1-8b-instant")
+        llm = ChatGroq(groq_api_key=settings.GROQ_API_KEY, model_name="llama-3.3-70b-versatile")
         structured_llm = llm.with_structured_output(AIGeneratedRubrics)
 
         prompt = (
@@ -128,6 +128,5 @@ class AIService:
         db.add(evaluation)
         db.add(submission)
         await db.flush()
-
 
 ai_service = AIService()

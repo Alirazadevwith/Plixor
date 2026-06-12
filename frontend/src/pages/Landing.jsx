@@ -1,10 +1,18 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const Landing = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState("");
+
+  const currentTab = (location.hash === "#for-teachers" || activeSection === "for-teachers")
+    ? "teachers"
+    : (location.hash === "#for-students" || activeSection === "for-students")
+      ? "students"
+      : "teachers";
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
@@ -12,8 +20,35 @@ const Landing = () => {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setActiveSection(entry.target.id);
+          }
+        });
+      },
+      { threshold: 0.5 }
+    );
+
+    const sections = document.querySelectorAll("section[id], div#for-teachers, div#for-students");
+    sections.forEach((section) => observer.observe(section));
+
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (location.hash) {
+      const id = location.hash.replace("#", "");
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [location.hash]);
+
   const scrollToSection = (id) => {
     setMobileMenuOpen(false);
+    navigate(`/#${id}`);
     const el = document.getElementById(id);
     if (el) el.scrollIntoView({ behavior: "smooth" });
   };
@@ -50,25 +85,34 @@ const Landing = () => {
             {[
               { label: "Features", id: "features" },
               { label: "How it Works", id: "how-it-works" },
-              { label: "For Teachers", id: "for-who" },
-              { label: "For Students", id: "for-who" },
-            ].map((item) => (
-              <span
-                key={item.label}
-                onClick={() => scrollToSection(item.id)}
-                style={{
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: "#4A5568",
-                  cursor: "pointer",
-                  transition: "color 0.2s",
-                }}
-                onMouseEnter={(e) => e.target.style.color = "#4A90E2"}
-                onMouseLeave={(e) => e.target.style.color = "#4A5568"}
-              >
-                {item.label}
-              </span>
-            ))}
+              { label: "For Teachers", id: "for-teachers" },
+              { label: "For Students", id: "for-students" },
+            ].map((item) => {
+              const isActive = location.hash === `#${item.id}` || (!location.hash && activeSection === item.id);
+              return (
+                <span
+                  key={item.label}
+                  onClick={() => scrollToSection(item.id)}
+                  style={{
+                    fontSize: 14,
+                    fontWeight: isActive ? 600 : 500,
+                    color: isActive ? "#4A90E2" : "#4A5568",
+                    cursor: "pointer",
+                    transition: "color 0.2s",
+                    borderBottom: isActive ? "2px solid #4A90E2" : "2px solid transparent",
+                    paddingBottom: 4,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) e.target.style.color = "#4A90E2";
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) e.target.style.color = "#4A5568";
+                  }}
+                >
+                  {item.label}
+                </span>
+              );
+            })}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 12 }} className="landing-nav-buttons">
@@ -140,15 +184,27 @@ const Landing = () => {
             flexDirection: "column",
             gap: 16,
           }}>
-            {["Features", "How it Works", "For Teachers", "For Students"].map((label) => (
-              <span
-                key={label}
-                onClick={() => scrollToSection(label === "For Teachers" || label === "For Students" ? "for-who" : label.toLowerCase().replace(/ /g, "-"))}
-                style={{ fontSize: 15, fontWeight: 500, color: "#4A5568", cursor: "pointer" }}
-              >
-                {label}
-              </span>
-            ))}
+            {["Features", "How it Works", "For Teachers", "For Students"].map((label) => {
+              const id = label === "For Teachers" ? "for-teachers" : label === "For Students" ? "for-students" : label.toLowerCase().replace(/ /g, "-");
+              const isActive = location.hash === `#${id}` || (!location.hash && activeSection === id);
+              return (
+                <span
+                  key={label}
+                  onClick={() => scrollToSection(id)}
+                  style={{
+                    fontSize: 15,
+                    fontWeight: isActive ? 600 : 500,
+                    color: isActive ? "#4A90E2" : "#4A5568",
+                    cursor: "pointer",
+                    borderLeft: isActive ? "3px solid #4A90E2" : "3px solid transparent",
+                    paddingLeft: isActive ? 8 : 0,
+                    transition: "all 0.2s",
+                  }}
+                >
+                  {label}
+                </span>
+              );
+            })}
             <div style={{ display: "flex", gap: 12, paddingTop: 8 }}>
               <button
                 onClick={() => navigate("/login")}
@@ -334,7 +390,7 @@ const Landing = () => {
         </div>
       </section>
 
-      <section id="features" style={{ padding: "80px 24px", background: "#FFFFFF" }}>
+      <section id="features" style={{ padding: "80px 24px", background: "#FFFFFF", scrollMarginTop: "72px" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 56 }}>
             <h2 style={{ fontSize: 32, fontWeight: 700, color: "#1A202C", marginBottom: 12 }}>
@@ -452,7 +508,7 @@ const Landing = () => {
         </div>
       </section>
 
-      <section id="how-it-works" style={{ padding: "80px 24px", background: "#F7F8FC" }}>
+      <section id="how-it-works" style={{ padding: "80px 24px", background: "#F7F8FC", scrollMarginTop: "72px" }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: 56 }}>
             <h2 style={{ fontSize: 32, fontWeight: 700, color: "#1A202C", marginBottom: 12 }}>
@@ -518,20 +574,33 @@ const Landing = () => {
         </div>
       </section>
 
-      <section id="for-who" style={{ padding: "80px 24px", background: "#EBF4FF" }}>
+      <section style={{ padding: "80px 24px", background: "linear-gradient(180deg, #F8FAFC 0%, #EBF4FF 100%)" }}>
         <div style={{
           maxWidth: 1200,
           margin: "0 auto",
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(400px, 1fr))",
           gap: 40,
+          alignItems: "stretch",
         }}>
-          <div style={{
-            background: "#FFFFFF",
-            borderRadius: 12,
-            padding: 40,
-            border: "1px solid #E2E8F0",
-          }}>
+          <div
+            id="for-teachers"
+            style={{
+              background: "#FFFFFF",
+              borderRadius: 16,
+              padding: 40,
+              border: currentTab === "teachers" ? "2px solid #38A169" : "1px solid #E2E8F0",
+              boxShadow: currentTab === "teachers"
+                ? "0 20px 40px rgba(56, 161, 105, 0.15)"
+                : "0 4px 12px rgba(0,0,0,0.03)",
+              transform: currentTab === "teachers" ? "scale(1.03) translateY(-8px)" : "scale(0.97) translateY(0)",
+              opacity: currentTab === "students" ? 0.6 : 1,
+              transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
+              cursor: "pointer",
+              scrollMarginTop: "110px",
+            }}
+            onClick={() => scrollToSection("for-teachers")}
+          >
             <h3 style={{ fontSize: 24, fontWeight: 700, color: "#1A202C", marginBottom: 24 }}>
               Built for Educators
             </h3>
@@ -542,6 +611,8 @@ const Landing = () => {
                 "Per-criterion scoring with detailed feedback",
                 "Override AI scores with custom reasoning",
                 "Export results to CSV with full analytics",
+                "Monitor student performance across sections",
+                "Detect and log suspicious activity during exams",
               ].map((item) => (
                 <div key={item} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                   <div style={{
@@ -564,14 +635,26 @@ const Landing = () => {
             </div>
           </div>
 
-          <div style={{
-            background: "#FFFFFF",
-            borderRadius: 12,
-            padding: 40,
-            border: "1px solid #E2E8F0",
-          }}>
+          <div
+            id="for-students"
+            style={{
+              background: "#FFFFFF",
+              borderRadius: 16,
+              padding: 40,
+              border: currentTab === "students" ? "2px solid #4A90E2" : "1px solid #E2E8F0",
+              boxShadow: currentTab === "students"
+                ? "0 20px 40px rgba(74, 144, 226, 0.15)"
+                : "0 4px 12px rgba(0,0,0,0.03)",
+              transform: currentTab === "students" ? "scale(1.03) translateY(-8px)" : "scale(0.97) translateY(0)",
+              opacity: currentTab === "teachers" ? 0.6 : 1,
+              transition: "all 0.4s cubic-bezier(0.16, 1, 0.3, 1)",
+              cursor: "pointer",
+              scrollMarginTop: "110px",
+            }}
+            onClick={() => scrollToSection("for-students")}
+          >
             <h3 style={{ fontSize: 24, fontWeight: 700, color: "#1A202C", marginBottom: 24 }}>
-              Seamless for Students
+              Designed for Students
             </h3>
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               {[
@@ -580,6 +663,8 @@ const Landing = () => {
                 "Real-time countdown timer with warnings",
                 "Instant results with detailed AI feedback",
                 "Per-question criterion scores and explanations",
+                "See exactly where marks were lost and why",
+                "View performance history across all exams",
               ].map((item) => (
                 <div key={item} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                   <div style={{
