@@ -4,23 +4,13 @@ from sqlalchemy.orm import DeclarativeBase
 from core.config import settings
 
 
-db_url = settings.DATABASE_URL
-if "ep-xxx.neon.tech" in db_url:
-    db_url = "sqlite+aiosqlite:///./plixor.db"
-
-if "sqlite" in db_url:
-    engine = create_async_engine(
-        db_url,
-        echo=settings.ENVIRONMENT == "development",
-    )
-else:
-    engine = create_async_engine(
-        db_url,
-        echo=settings.ENVIRONMENT == "development",
-        pool_pre_ping=True,
-        pool_size=10,
-        max_overflow=20,
-    )
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=settings.ENVIRONMENT == "development",
+    pool_pre_ping=True,
+    pool_size=10,
+    max_overflow=20,
+)
 
 AsyncSessionLocal = async_sessionmaker(
     engine,

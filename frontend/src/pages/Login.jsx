@@ -226,8 +226,8 @@ const Login = () => {
               <div>
                 <label style={labelStyle}>Email Address</label>
                 <input
-                  type="email"
-                  {...registerField("email")}
+                  type="text"
+                  {...registerField("email", { setValueAs: (v) => v.trim() })}
                   style={inputStyle}
                   placeholder="you@university.edu"
                   onFocus={(e) => e.target.style.borderColor = "#4A90E2"}

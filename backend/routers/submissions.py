@@ -246,6 +246,14 @@ async def submit_exam(
 
     await ai_service.evaluate_submission(submission.id, db)
     await db.refresh(submission)
+
+    exam_result = await db.execute(select(Exam).where(Exam.id == submission.exam_id))
+    exam = exam_result.scalar_one_or_none()
+    if exam:
+        exam.status = ExamStatus.evaluated
+        db.add(exam)
+        await db.flush()
+
     return submission
 
 
@@ -319,6 +327,8 @@ async def override_evaluation(
 
     submission.total_score = req.total_score
     submission.status = SubmissionStatus.evaluated
+    exam.status = ExamStatus.evaluated
+    db.add(exam)
 
     db.add(evaluation)
     db.add(submission)
@@ -411,6 +421,12 @@ async def log_cheating_event(
         db.add(submission)
         await db.flush()
         await ai_service.evaluate_submission(submission.id, db)
+        exam_result = await db.execute(select(Exam).where(Exam.id == submission.exam_id))
+        exam = exam_result.scalar_one_or_none()
+        if exam:
+            exam.status = ExamStatus.evaluated
+            db.add(exam)
+            await db.flush()
     else:
         db.add(submission)
         await db.flush()

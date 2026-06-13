@@ -378,7 +378,7 @@ const Landing = () => {
         }}>
           {[
             { value: "10x", label: "Faster Grading", icon: "⚡" },
-            { value: "98%", label: "Evaluation Accuracy", icon: "🎯" },
+            { value: "95%", label: "Evaluation Accuracy", icon: "🎯" },
             { value: "500+", label: "Exams Evaluated", icon: "📝" },
           ].map((stat) => (
             <div key={stat.label} style={{ textAlign: "center", minWidth: 180 }}>

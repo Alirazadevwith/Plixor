@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 from models.enums import (
     UserRole,
     ExamType,
@@ -14,7 +14,7 @@ from models.enums import (
 
 
 class SafeResponseModel(BaseModel):
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
 
     @model_validator(mode="before")
     @classmethod
@@ -132,6 +132,7 @@ class RubricCriterionResponse(SafeResponseModel):
 
 
 class QuestionCreate(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
     question_type: QuestionType
     question_text: str = Field(min_length=1)
     model_answer: Optional[str] = None
@@ -144,6 +145,7 @@ class QuestionCreate(BaseModel):
 
 
 class QuestionResponse(SafeResponseModel):
+    model_config = ConfigDict(from_attributes=True, protected_namespaces=())
     id: uuid.UUID
     exam_id: uuid.UUID
     question_type: QuestionType

@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
-import bcrypt  # type: ignore
+import bcrypt
 from fastapi import HTTPException, status
 
 from core.config import settings

@@ -1,6 +1,6 @@
 import uuid
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from models.enums import Difficulty, BloomLevel, QuestionType
 
 
@@ -10,6 +10,7 @@ class AIGeneratedMCQOption(BaseModel):
 
 
 class AIGeneratedQuestion(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
     question_type: QuestionType = Field(description="Type of the question, either mcq or subjective.")
     question_text: str = Field(description="The actual question text.")
     model_answer: Optional[str] = Field(
@@ -80,6 +81,7 @@ class QuestionGenerationConfig(BaseModel):
 
 
 class RubricGenerationConfig(BaseModel):
+    model_config = ConfigDict(protected_namespaces=())
     question_text: str
     model_answer: str
     marks: float

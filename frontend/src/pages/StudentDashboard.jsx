@@ -88,10 +88,10 @@ const StudentDashboard = () => {
         />
         <StatCard
           label="Completed Exams"
-          value={exams.filter((e) => e.status === "completed" || e.status === "evaluated").length}
-          loading={examsLoading}
+          value={mySubmissions.filter((s) => s.status === "evaluated").length}
+          loading={mySubmissionsLoading}
           color="#38A169"
-          icon="✅"
+          icon="🏆"
         />
       </div>
 

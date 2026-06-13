@@ -885,8 +885,6 @@ const Results = () => {
       </div>
     );
   }
-
-  // STUDENT: Submissions history overview page
   if (isStudent) {
     return (
       <div>
@@ -948,8 +946,14 @@ const Results = () => {
                             padding: "6px 12px", borderRadius: 6, fontSize: 13, fontWeight: 600,
                             cursor: "pointer", transition: "all 0.2s", display: "inline-flex", alignItems: "center", gap: 4
                           }}
-                          onMouseEnter={e => e.currentTarget.style.background = "#4A90E2"}
-                          onMouseLeave={e => e.currentTarget.style.background = "#EBF4FF"}
+                          onMouseEnter={e => {
+                             e.currentTarget.style.background = "#4A90E2";
+                             e.currentTarget.style.color = "#FFFFFF";
+                            }}
+                            onMouseLeave={e => {
+                              e.currentTarget.style.background = "#EBF4FF";
+                              e.currentTarget.style.color = "#4A90E2";
+                            }}
                         >
                           View Feedback <ArrowRight size={14} />
                         </button>
