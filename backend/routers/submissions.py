@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -217,6 +217,7 @@ async def save_answer(
 async def submit_exam(
     id: uuid.UUID,
     submit_in: SubmissionSubmit,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -244,8 +245,7 @@ async def submit_exam(
     db.add(submission)
     await db.flush()
 
-    await ai_service.evaluate_submission(submission.id, db)
-    await db.refresh(submission)
+    background_tasks.add_task(ai_service.evaluate_submission, submission.id)
 
     exam_result = await db.execute(select(Exam).where(Exam.id == submission.exam_id))
     exam = exam_result.scalar_one_or_none()
@@ -420,7 +420,7 @@ async def log_cheating_event(
         auto_submitted = True
         db.add(submission)
         await db.flush()
-        await ai_service.evaluate_submission(submission.id, db)
+        await ai_service.evaluate_submission(submission.id)
         exam_result = await db.execute(select(Exam).where(Exam.id == submission.exam_id))
         exam = exam_result.scalar_one_or_none()
         if exam:

@@ -177,7 +177,7 @@ async def get_exam_questions(
     elif current_user.role == UserRole.student:
         student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
         student = student_result.scalar_one_or_none()
-        if not student or exam.section_id != student.section_id or exam.status != ExamStatus.active:
+        if not student or exam.section_id != student.section_id or exam.status == ExamStatus.draft:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     q_result = await db.execute(

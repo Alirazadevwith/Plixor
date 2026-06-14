@@ -1,10 +1,11 @@
 import uuid
-from typing import List, Any
-from fastapi import HTTPException, status
+from typing import List
+from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from core.config import settings
-from models.models import Submission, Exam, Question, StudentAnswer, Evaluation
+from core.database import AsyncSessionLocal
+from models.models import Submission, Question, StudentAnswer, Evaluation, MCQResult, CriterionScore
 from models.enums import QuestionType, SubmissionStatus
 from schemas.ai_schemas import (
     AIGeneratedQuestion,
@@ -61,11 +62,24 @@ class AIService:
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"AI Service Error: {str(e)}")
 
-    async def evaluate_submission(self, submission_id: uuid.UUID, db: AsyncSession):
+    async def evaluate_submission(self, submission_id: uuid.UUID, db: AsyncSession = None):
+        try:
+            if db is None:
+                async with AsyncSessionLocal() as db:
+                    await self._do_evaluate(submission_id, db)
+                    await db.commit()
+                return
+            await self._do_evaluate(submission_id, db)
+        except Exception as e:
+            print(f"❌ EVALUATION ERROR: {e}")
+            import traceback
+            traceback.print_exc()
+
+    async def _do_evaluate(self, submission_id: uuid.UUID, db: AsyncSession):
         sub_result = await db.execute(select(Submission).where(Submission.id == submission_id))
         submission = sub_result.scalar_one_or_none()
         if not submission:
-            raise HTTPException(status_code=404, detail="Submission not found")
+            return
 
         q_result = await db.execute(
             select(Question).where(Question.exam_id == submission.exam_id)
@@ -121,6 +135,31 @@ class AIService:
 
             total_score += result.get("final_score", 0.0)
 
+            # Manually save results
+            if question.question_type == QuestionType.mcq:
+                mcq_data = result.get("mcq_result")
+                if mcq_data:
+                    mcq_record = MCQResult(
+                        evaluation_id=eval_id,
+                        question_id=question.id,
+                        is_correct=mcq_data["is_correct"],
+                        similarity_score=mcq_data["similarity_score"],
+                        explanation=mcq_data["explanation"],
+                    )
+                    db.add(mcq_record)
+            else:
+                for item in result.get("criterion_scores", []):
+                    score_record = CriterionScore(
+                        evaluation_id=eval_id,
+                        criterion_id=uuid.UUID(item["criterion_id"]),
+                        score=item["score"],
+                        feedback=item["feedback"],
+                        similarity_score=item["similarity_score"],
+                    )
+                    db.add(score_record)
+
+            await db.flush()
+
         evaluation.total_score = total_score
         submission.total_score = total_score
         submission.status = SubmissionStatus.evaluated
@@ -128,5 +167,6 @@ class AIService:
         db.add(evaluation)
         db.add(submission)
         await db.flush()
+
 
 ai_service = AIService()
