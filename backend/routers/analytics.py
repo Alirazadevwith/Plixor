@@ -1,11 +1,9 @@
-import uuid
-from typing import List, Dict, Any
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from core.database import get_db
-from core.dependencies import get_current_user, require_teacher
+from core.dependencies import get_owned_exam, get_owned_section
 from models.models import (
     Exam,
     Submission,
@@ -13,9 +11,8 @@ from models.models import (
     Section,
     User,
     CheatingLog,
-    Evaluation,
 )
-from models.enums import UserRole, SubmissionStatus
+from models.enums import SubmissionStatus
 from services.export_service import export_service
 
 router = APIRouter()
@@ -23,20 +20,12 @@ router = APIRouter()
 
 @router.get("/exam/{id}/summary")
 async def get_exam_summary(
-    id: uuid.UUID,
-    current_user: User = Depends(require_teacher),
+    exam: Exam = Depends(get_owned_exam),
     db: AsyncSession = Depends(get_db),
 ):
-    exam_result = await db.execute(select(Exam).where(Exam.id == id))
-    exam = exam_result.scalar_one_or_none()
-    if not exam or (current_user.role != UserRole.admin and exam.teacher_id != current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this exam summary"
-        )
-
     subs_result = await db.execute(
         select(Submission).where(
-            Submission.exam_id == id, Submission.status == SubmissionStatus.evaluated
+            Submission.exam_id == exam.id, Submission.status == SubmissionStatus.evaluated
         )
     )
     submissions = subs_result.scalars().all()
@@ -65,7 +54,7 @@ async def get_exam_summary(
     cheat_result = await db.execute(
         select(func.count(CheatingLog.id))
         .join(Submission, CheatingLog.submission_id == Submission.id)
-        .where(Submission.exam_id == id)
+        .where(Submission.exam_id == exam.id)
     )
     cheat_incidents = cheat_result.scalar() or 0
 
@@ -81,18 +70,10 @@ async def get_exam_summary(
 
 @router.get("/section/{id}/performance")
 async def get_section_performance(
-    id: uuid.UUID,
-    current_user: User = Depends(require_teacher),
+    section: Section = Depends(get_owned_section),
     db: AsyncSession = Depends(get_db),
 ):
-    sec_result = await db.execute(select(Section).where(Section.id == id))
-    section = sec_result.scalar_one_or_none()
-    if not section or (current_user.role != UserRole.admin and section.teacher_id != current_user.id):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to this section"
-        )
-
-    exams_result = await db.execute(select(Exam).where(Exam.section_id == id))
+    exams_result = await db.execute(select(Exam).where(Exam.section_id == section.id))
     exams = exams_result.scalars().all()
 
     performance = []
@@ -122,20 +103,14 @@ async def get_section_performance(
 
 @router.get("/exam/{id}/suspicious")
 async def get_suspicious_students(
-    id: uuid.UUID,
-    current_user: User = Depends(require_teacher),
+    exam: Exam = Depends(get_owned_exam),
     db: AsyncSession = Depends(get_db),
 ):
-    exam_result = await db.execute(select(Exam).where(Exam.id == id))
-    exam = exam_result.scalar_one_or_none()
-    if not exam or (current_user.role != UserRole.admin and exam.teacher_id != current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
     query = (
         select(Student, User, Submission)
         .join(Submission, Student.id == Submission.student_id)
         .join(User, Student.user_id == User.id)
-        .where(Submission.exam_id == id)
+        .where(Submission.exam_id == exam.id)
     )
     result = await db.execute(query)
     rows = result.all()
@@ -178,37 +153,25 @@ async def get_suspicious_students(
 
 @router.get("/exam/{id}/export-csv")
 async def export_exam_results_csv(
-    id: uuid.UUID,
-    current_user: User = Depends(require_teacher),
+    exam: Exam = Depends(get_owned_exam),
     db: AsyncSession = Depends(get_db),
 ):
-    exam_result = await db.execute(select(Exam).where(Exam.id == id))
-    exam = exam_result.scalar_one_or_none()
-    if not exam or (current_user.role != UserRole.admin and exam.teacher_id != current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
-    content = await export_service.export_exam_csv(id, db)
+    content = await export_service.export_exam_csv(exam.id, db)
     return StreamingResponse(
         content,
         media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=exam_{id}_results.csv"},
+        headers={"Content-Disposition": f"attachment; filename=exam_{exam.id}_results.csv"},
     )
 
 
 @router.get("/exam/{id}/export-excel")
 async def export_exam_results_excel(
-    id: uuid.UUID,
-    current_user: User = Depends(require_teacher),
+    exam: Exam = Depends(get_owned_exam),
     db: AsyncSession = Depends(get_db),
 ):
-    exam_result = await db.execute(select(Exam).where(Exam.id == id))
-    exam = exam_result.scalar_one_or_none()
-    if not exam or (current_user.role != UserRole.admin and exam.teacher_id != current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
-    content = await export_service.export_exam_excel(id, db)
+    content = await export_service.export_exam_excel(exam.id, db)
     return StreamingResponse(
         content,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename=exam_{id}_results.xlsx"},
+        headers={"Content-Disposition": f"attachment; filename=exam_{exam.id}_results.xlsx"},
     )

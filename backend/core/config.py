@@ -1,5 +1,5 @@
 import os
-from typing import List, Any, Union
+from typing import List, Union
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
 from dotenv import load_dotenv

@@ -6,7 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from core.database import get_db
-from core.dependencies import get_current_user, require_teacher
+from core.dependencies import (
+    get_current_student,
+    get_current_user,
+    require_teacher,
+)
 from models.models import (
     Exam,
     Submission,
@@ -15,8 +19,6 @@ from models.models import (
     User,
     CheatingLog,
     Evaluation,
-    Question,
-    MCQOption,
 )
 from models.enums import UserRole, SubmissionStatus, ExamStatus
 from schemas.schemas import (
@@ -36,22 +38,21 @@ from services.ai_service import ai_service
 router = APIRouter()
 
 
+async def _require_own_submission(submission: Submission, user: User, db: AsyncSession) -> Student:
+    """403 unless `submission` belongs to the calling student."""
+    result = await db.execute(select(Student).where(Student.user_id == user.id))
+    student = result.scalar_one_or_none()
+    if not student or submission.student_id != student.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    return student
+
+
 @router.post("/start/{exam_id}", response_model=SubmissionStartResponse)
 async def start_submission(
     exam_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    if current_user.role != UserRole.student:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Only students can start exams"
-        )
-
-    student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
-    student = student_result.scalar_one_or_none()
-    if not student:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student profile not found")
-
     exam_result = await db.execute(select(Exam).where(Exam.id == exam_id))
     exam = exam_result.scalar_one_or_none()
     if not exam:
@@ -114,22 +115,9 @@ async def start_submission(
 
 @router.get("/my", response_model=List[SubmissionResponse])
 async def get_my_submissions(
-    current_user: User = Depends(get_current_user),
+    student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    if current_user.role != UserRole.student:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only students can access this endpoint",
-        )
-    
-    student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
-    student = student_result.scalar_one_or_none()
-    if not student:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Student profile not found"
-        )
-
     subs_result = await db.execute(
         select(Submission)
         .where(Submission.student_id == student.id)
@@ -159,10 +147,7 @@ async def get_submission(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
 
     if current_user.role == UserRole.student:
-        student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
-        student = student_result.scalar_one_or_none()
-        if not student or submission.student_id != student.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        await _require_own_submission(submission, current_user, db)
 
     return submission
 
@@ -184,10 +169,7 @@ async def save_answer(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Submission is not in progress"
         )
 
-    student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
-    student = student_result.scalar_one_or_none()
-    if not student or submission.student_id != student.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    await _require_own_submission(submission, current_user, db)
 
     ans_result = await db.execute(
         select(StudentAnswer).where(
@@ -231,10 +213,7 @@ async def submit_exam(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Submission is not in progress"
         )
 
-    student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
-    student = student_result.scalar_one_or_none()
-    if not student or submission.student_id != student.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    await _require_own_submission(submission, current_user, db)
 
     submission.status = SubmissionStatus.submitted
     submission.submitted_at = datetime.now(timezone.utc)
@@ -269,10 +248,7 @@ async def get_evaluation(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
 
     if current_user.role == UserRole.student:
-        student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
-        student = student_result.scalar_one_or_none()
-        if not student or submission.student_id != student.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        await _require_own_submission(submission, current_user, db)
 
     eval_result = await db.execute(
         select(Evaluation)
@@ -359,22 +335,9 @@ async def get_exam_submissions(
 @router.get("/student/exam/{exam_id}", response_model=List[SubmissionResponse])
 async def get_student_exam_submissions(
     exam_id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
+    student: Student = Depends(get_current_student),
     db: AsyncSession = Depends(get_db),
 ):
-    if current_user.role != UserRole.student:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only students can access their submissions via this endpoint",
-        )
-    
-    student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
-    student = student_result.scalar_one_or_none()
-    if not student:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Student profile not found"
-        )
-
     subs_result = await db.execute(
         select(Submission)
         .where(Submission.exam_id == exam_id, Submission.student_id == student.id)
@@ -396,10 +359,7 @@ async def log_cheating_event(
     if not submission:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
 
-    student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
-    student = student_result.scalar_one_or_none()
-    if not student or submission.student_id != student.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+    await _require_own_submission(submission, current_user, db)
 
     submission.warning_count += 1
 

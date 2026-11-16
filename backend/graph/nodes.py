@@ -1,6 +1,6 @@
 import uuid
 import numpy as np
-from typing import Dict, Any, List
+from typing import Dict, Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.models import MCQOption, RubricCriterion

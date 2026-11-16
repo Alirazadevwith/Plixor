@@ -7,35 +7,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from core.database import get_db
-from core.dependencies import get_current_user, require_teacher
-from models.models import Exam, Question, MCQOption, RubricCriterion, Student, User
-from models.enums import UserRole, ExamStatus, QuestionType
+from core.dependencies import (
+    get_accessible_exam,
+    get_current_student,
+    get_current_user,
+    get_owned_exam,
+    require_teacher,
+)
+from models.models import Exam, Question, MCQOption, RubricCriterion, Student, Submission, User
+from models.enums import UserRole, ExamStatus, QuestionType, SubmissionStatus
 from schemas.schemas import (
     ExamCreate,
     ExamResponse,
     QuestionCreate,
     QuestionResponse,
-    MCQOptionCreate,
-    RubricCriterionCreate,
     RubricCriterionResponse,
 )
 from schemas.ai_schemas import QuestionGenerationConfig
 from services.ai_service import ai_service
 
 router = APIRouter()
-
-
-async def verify_exam_owner(exam_id: uuid.UUID, user: User, db: AsyncSession):
-    result = await db.execute(select(Exam).where(Exam.id == exam_id))
-    exam = result.scalar_one_or_none()
-    if not exam:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam not found")
-    if user.role != UserRole.admin and exam.teacher_id != user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this exam",
-        )
-    return exam
 
 
 @router.get("", response_model=List[ExamResponse])
@@ -81,19 +72,9 @@ async def create_exam(
 
 @router.get("/student/available", response_model=List[ExamResponse])
 async def get_available_exams(
-    current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+    student: Student = Depends(get_current_student),
+    db: AsyncSession = Depends(get_db),
 ):
-    if current_user.role != UserRole.student:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only students can check available exams",
-        )
-
-    student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
-    student = student_result.scalar_one_or_none()
-    if not student:
-        return []
-
     now = datetime.now(timezone.utc)
     result = await db.execute(
         select(Exam).where(
@@ -107,35 +88,16 @@ async def get_available_exams(
 
 
 @router.get("/{id}", response_model=ExamResponse)
-async def get_exam(
-    id: uuid.UUID,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    result = await db.execute(select(Exam).where(Exam.id == id))
-    exam = result.scalar_one_or_none()
-    if not exam:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam not found")
-
-    if current_user.role == UserRole.teacher and exam.teacher_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    elif current_user.role == UserRole.student:
-        student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
-        student = student_result.scalar_one_or_none()
-        if not student or exam.section_id != student.section_id or exam.status == ExamStatus.draft:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
+async def get_exam(exam: Exam = Depends(get_accessible_exam)):
     return exam
 
 
 @router.put("/{id}", response_model=ExamResponse)
 async def update_exam(
-    id: uuid.UUID,
     exam_in: ExamCreate,
-    current_user: User = Depends(require_teacher),
+    exam: Exam = Depends(get_owned_exam),
     db: AsyncSession = Depends(get_db),
 ):
-    exam = await verify_exam_owner(id, current_user, db)
     exam.title = exam_in.title
     exam.subject = exam_in.subject
     exam.exam_type = exam_in.exam_type
@@ -152,73 +114,56 @@ async def update_exam(
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_exam(
-    id: uuid.UUID,
-    current_user: User = Depends(require_teacher),
+    exam: Exam = Depends(get_owned_exam),
     db: AsyncSession = Depends(get_db),
 ):
-    exam = await verify_exam_owner(id, current_user, db)
     await db.delete(exam)
     await db.flush()
 
 
 @router.get("/{id}/questions", response_model=List[QuestionResponse])
 async def get_exam_questions(
-    id: uuid.UUID,
     current_user: User = Depends(get_current_user),
+    exam: Exam = Depends(get_accessible_exam),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Exam).where(Exam.id == id))
-    exam = result.scalar_one_or_none()
-    if not exam:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam not found")
-
-    if current_user.role == UserRole.teacher and exam.teacher_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-    elif current_user.role == UserRole.student:
-        student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
-        student = student_result.scalar_one_or_none()
-        if not student or exam.section_id != student.section_id or exam.status == ExamStatus.draft:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
-
     q_result = await db.execute(
         select(Question)
-        .where(Question.exam_id == id)
+        .where(Question.exam_id == exam.id)
         .options(selectinload(Question.options), selectinload(Question.rubrics))
         .order_by(Question.order_index)
     )
     questions = q_result.scalars().all()
 
-    response = []
-    
-    hide_answers = False
-    if current_user.role == UserRole.student:
-        hide_answers = True
-        # Check if student has a completed submission
-        student_result = await db.execute(select(Student).where(Student.user_id == current_user.id))
+    hide_answers = current_user.role == UserRole.student
+    if hide_answers:
+        # Once the student has handed in, the answer key is theirs to see.
+        student_result = await db.execute(
+            select(Student).where(Student.user_id == current_user.id)
+        )
         student = student_result.scalar_one_or_none()
         if student:
-            from models.models import Submission
-            from models.enums import SubmissionStatus
             sub_res = await db.execute(
                 select(Submission).where(
-                    Submission.exam_id == id,
-                    Submission.student_id == student.id
+                    Submission.exam_id == exam.id,
+                    Submission.student_id == student.id,
                 )
             )
             submission = sub_res.scalar_one_or_none()
-            if submission and submission.status in [SubmissionStatus.submitted, SubmissionStatus.evaluated]:
+            if submission and submission.status in (
+                SubmissionStatus.submitted,
+                SubmissionStatus.evaluated,
+            ):
                 hide_answers = False
 
+    response = []
     for q in questions:
         q_data = QuestionResponse.model_validate(q)
         if hide_answers:
             q_data.model_answer = None
             q_data.rubrics = []
-            cleaned_options = []
             for opt in q_data.options:
                 opt.is_correct = False
-                cleaned_options.append(opt)
-            q_data.options = cleaned_options
         response.append(q_data)
 
     if hide_answers and exam.is_randomized:
@@ -230,15 +175,13 @@ async def get_exam_questions(
 
 @router.post("/{id}/questions", response_model=QuestionResponse, status_code=status.HTTP_201_CREATED)
 async def add_question(
-    id: uuid.UUID,
     q_in: QuestionCreate,
-    current_user: User = Depends(require_teacher),
+    exam: Exam = Depends(get_owned_exam),
     db: AsyncSession = Depends(get_db),
 ):
-    await verify_exam_owner(id, current_user, db)
 
     question = Question(
-        exam_id=id,
+        exam_id=exam.id,
         question_type=q_in.question_type,
         question_text=q_in.question_text,
         model_answer=q_in.model_answer,
@@ -283,12 +226,10 @@ async def add_question(
 
 @router.post("/{id}/questions/generate-ai", response_model=List[QuestionResponse])
 async def generate_questions_ai(
-    id: uuid.UUID,
     config: QuestionGenerationConfig,
-    current_user: User = Depends(require_teacher),
+    exam: Exam = Depends(get_owned_exam),
     db: AsyncSession = Depends(get_db),
 ):
-    await verify_exam_owner(id, current_user, db)
 
     generated = await ai_service.generate_questions(
         topic=config.topic,
@@ -301,7 +242,7 @@ async def generate_questions_ai(
     saved_questions = []
     for g_q in generated:
         question = Question(
-            exam_id=id,
+            exam_id=exam.id,
             question_type=g_q.question_type,
             question_text=g_q.question_text,
             model_answer=g_q.model_answer,
@@ -340,15 +281,13 @@ async def generate_questions_ai(
 
 @router.put("/{id}/questions/{qid}", response_model=QuestionResponse)
 async def update_question(
-    id: uuid.UUID,
     qid: uuid.UUID,
     q_in: QuestionCreate,
-    current_user: User = Depends(require_teacher),
+    exam: Exam = Depends(get_owned_exam),
     db: AsyncSession = Depends(get_db),
 ):
-    await verify_exam_owner(id, current_user, db)
 
-    q_result = await db.execute(select(Question).where(Question.id == qid, Question.exam_id == id))
+    q_result = await db.execute(select(Question).where(Question.id == qid, Question.exam_id == exam.id))
     question = q_result.scalar_one_or_none()
     if not question:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
@@ -405,14 +344,12 @@ async def update_question(
 
 @router.delete("/{id}/questions/{qid}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_question(
-    id: uuid.UUID,
     qid: uuid.UUID,
-    current_user: User = Depends(require_teacher),
+    exam: Exam = Depends(get_owned_exam),
     db: AsyncSession = Depends(get_db),
 ):
-    await verify_exam_owner(id, current_user, db)
 
-    q_result = await db.execute(select(Question).where(Question.id == qid, Question.exam_id == id))
+    q_result = await db.execute(select(Question).where(Question.id == qid, Question.exam_id == exam.id))
     question = q_result.scalar_one_or_none()
     if not question:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
@@ -423,14 +360,12 @@ async def delete_question(
 
 @router.post("/{id}/questions/{qid}/generate-rubric", response_model=List[RubricCriterionResponse])
 async def generate_rubric_ai(
-    id: uuid.UUID,
     qid: uuid.UUID,
-    current_user: User = Depends(require_teacher),
+    exam: Exam = Depends(get_owned_exam),
     db: AsyncSession = Depends(get_db),
 ):
-    await verify_exam_owner(id, current_user, db)
 
-    q_result = await db.execute(select(Question).where(Question.id == qid, Question.exam_id == id))
+    q_result = await db.execute(select(Question).where(Question.id == qid, Question.exam_id == exam.id))
     question = q_result.scalar_one_or_none()
     if not question:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
@@ -472,11 +407,9 @@ async def generate_rubric_ai(
 
 @router.post("/{id}/publish", response_model=ExamResponse)
 async def publish_exam(
-    id: uuid.UUID,
-    current_user: User = Depends(require_teacher),
+    exam: Exam = Depends(get_owned_exam),
     db: AsyncSession = Depends(get_db),
 ):
-    exam = await verify_exam_owner(id, current_user, db)
     exam.status = ExamStatus.active
     db.add(exam)
     await db.flush()

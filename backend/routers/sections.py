@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from core.database import get_db
-from core.dependencies import get_current_user, require_teacher
+from core.dependencies import get_current_user, get_owned_section, require_teacher
 from core.security import hash_password
 from models.models import Section, Student, User
 from models.enums import UserRole
@@ -20,19 +20,6 @@ from schemas.schemas import (
 )
 
 router = APIRouter()
-
-
-async def verify_section_owner(section_id: uuid.UUID, user: User, db: AsyncSession):
-    result = await db.execute(select(Section).where(Section.id == section_id))
-    section = result.scalar_one_or_none()
-    if not section:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Section not found")
-    if user.role != UserRole.admin and section.teacher_id != user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access denied to this section",
-        )
-    return section
 
 
 @router.get("", response_model=List[SectionResponse])
@@ -80,7 +67,7 @@ async def get_section(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
     elif current_user.role == UserRole.student:
         student_result = await db.execute(
-            select(Student).where(Student.user_id == current_user.id, Student.section_id == id)
+            select(Student).where(Student.user_id == current_user.id, Student.section_id == section.id)
         )
         if not student_result.scalar_one_or_none():
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
@@ -90,12 +77,10 @@ async def get_section(
 
 @router.put("/{id}", response_model=SectionResponse)
 async def update_section(
-    id: uuid.UUID,
     section_in: SectionCreate,
-    current_user: User = Depends(require_teacher),
+    section: Section = Depends(get_owned_section),
     db: AsyncSession = Depends(get_db),
 ):
-    section = await verify_section_owner(id, current_user, db)
     section.name = section_in.name
     section.department = section_in.department
     section.semester = section_in.semester
@@ -106,25 +91,21 @@ async def update_section(
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_section(
-    id: uuid.UUID,
-    current_user: User = Depends(require_teacher),
+    section: Section = Depends(get_owned_section),
     db: AsyncSession = Depends(get_db),
 ):
-    section = await verify_section_owner(id, current_user, db)
     await db.delete(section)
     await db.flush()
 
 
 @router.get("/{id}/students", response_model=List[StudentResponse])
 async def get_section_students(
-    id: uuid.UUID,
-    current_user: User = Depends(require_teacher),
+    section: Section = Depends(get_owned_section),
     db: AsyncSession = Depends(get_db),
 ):
-    await verify_section_owner(id, current_user, db)
     result = await db.execute(
         select(Student)
-        .where(Student.section_id == id)
+        .where(Student.section_id == section.id)
         .options(selectinload(Student.user))
     )
     students = result.scalars().all()
@@ -141,13 +122,10 @@ async def get_section_students(
 
 @router.post("/{id}/students", response_model=StudentResponse, status_code=status.HTTP_201_CREATED)
 async def add_student_to_section(
-    id: uuid.UUID,
     student_in: StudentCreate,
-    current_user: User = Depends(require_teacher),
+    section: Section = Depends(get_owned_section),
     db: AsyncSession = Depends(get_db),
 ):
-    await verify_section_owner(id, current_user, db)
-
     email_check = await db.execute(select(User).where(User.email == student_in.email))
     if email_check.scalar_one_or_none():
         raise HTTPException(
@@ -167,7 +145,7 @@ async def add_student_to_section(
     student = Student(
         user_id=user.id,
         roll_number=student_in.roll_number,
-        section_id=id,
+        section_id=section.id,
         department=student_in.department,
         semester=student_in.semester,
     )
@@ -181,13 +159,10 @@ async def add_student_to_section(
 
 @router.post("/{id}/import-csv", status_code=status.HTTP_201_CREATED)
 async def import_students_csv(
-    id: uuid.UUID,
     file: UploadFile = File(...),
-    current_user: User = Depends(require_teacher),
+    section: Section = Depends(get_owned_section),
     db: AsyncSession = Depends(get_db),
 ):
-    await verify_section_owner(id, current_user, db)
-
     contents = await file.read()
     decoded = contents.decode("utf-8")
     reader = csv.DictReader(io.StringIO(decoded))
@@ -224,7 +199,7 @@ async def import_students_csv(
         student = Student(
             user_id=user.id,
             roll_number=roll_number,
-            section_id=id,
+            section_id=section.id,
             department=department,
             semester=semester,
         )
@@ -237,14 +212,11 @@ async def import_students_csv(
 
 @router.delete("/{id}/students/{sid}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_student_from_section(
-    id: uuid.UUID,
     sid: uuid.UUID,
-    current_user: User = Depends(require_teacher),
+    section: Section = Depends(get_owned_section),
     db: AsyncSession = Depends(get_db),
 ):
-    await verify_section_owner(id, current_user, db)
-
-    student_result = await db.execute(select(Student).where(Student.id == sid, Student.section_id == id))
+    student_result = await db.execute(select(Student).where(Student.id == sid, Student.section_id == section.id))
     student = student_result.scalar_one_or_none()
     if not student:
         raise HTTPException(
