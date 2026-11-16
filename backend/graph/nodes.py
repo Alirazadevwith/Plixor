@@ -3,15 +3,13 @@ import numpy as np
 from typing import Dict, Any, List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from models.models import MCQOption, RubricCriterion, MCQResult, CriterionScore
+from models.models import MCQOption, RubricCriterion
 from graph.state import EvaluationState
 from core.config import settings
 from rag.rag import hybrid_rag
 from schemas.ai_schemas import (
     AIEvaluationMCQResult,
     AIEvaluationCriterionScore,
-    AIGeneratedQuestionList,
-    AIGeneratedRubrics,
 )
 from langchain_groq import ChatGroq
 from langchain_core.runnables import RunnableConfig
@@ -211,64 +209,3 @@ async def subjective_aggregate_node(state: EvaluationState, config: RunnableConf
     )
 
     return {"final_score": total, "feedback": feedback_msg}
-
-
-async def question_generator_node(state: EvaluationState, config: RunnableConfig):
-    llm = ChatGroq(groq_api_key=settings.GROQ_API_KEY, model_name="llama-3.1-8b-instant")
-    structured_llm = llm.with_structured_output(AIGeneratedQuestionList)
-
-    prompt = (
-        f"Generate {state['num_questions']} questions on the topic '{state['topic']}' "
-        f"with difficulty '{state['difficulty']}' and Bloom's level '{state['bloom_level']}'. "
-        f"Allocated marks: {state['marks']}."
-    )
-
-    response = await structured_llm.ainvoke(prompt)
-    questions_list = [q.model_dump() for q in response.questions]
-
-    return {"generated_question": questions_list}
-
-
-async def rubric_generator_node(state: EvaluationState, config: RunnableConfig):
-    llm = ChatGroq(groq_api_key=settings.GROQ_API_KEY, model_name="llama-3.1-8b-instant")
-    structured_llm = llm.with_structured_output(AIGeneratedRubrics)
-
-    prompt = (
-        f"Create rubrics for: '{state['question_text']}' with model answer: '{state['model_answer']}' "
-        f"and total marks: {state['total_marks']}."
-    )
-
-    response = await structured_llm.ainvoke(prompt)
-    criteria_list = [c.model_dump() for c in response.criteria]
-
-    return {"criteria": criteria_list}
-
-
-async def save_results_node(state: EvaluationState, config: RunnableConfig):
-    db: AsyncSession = config["configurable"]["db"]
-    eval_id = config["configurable"]["evaluation_id"]
-
-    if state["request_type"] == "evaluate_mcq":
-        res_data = state["mcq_result"]
-        mcq_result = MCQResult(
-            evaluation_id=eval_id,
-            question_id=uuid.UUID(state["question_id"]),
-            is_correct=res_data["is_correct"],
-            similarity_score=res_data["similarity_score"],
-            explanation=res_data["explanation"],
-        )
-        db.add(mcq_result)
-
-    elif state["request_type"] == "evaluate_subjective":
-        for item in state["criterion_scores"]:
-            score_record = CriterionScore(
-                evaluation_id=eval_id,
-                criterion_id=uuid.UUID(item["criterion_id"]),
-                score=item["score"],
-                feedback=item["feedback"],
-                similarity_score=item["similarity_score"],
-            )
-            db.add(score_record)
-
-    await db.flush()
-    return state

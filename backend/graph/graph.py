@@ -9,8 +9,6 @@ from graph.nodes import (
     subjective_retrieval_node,
     evaluate_criterion_node,
     subjective_aggregate_node,
-    question_generator_node,
-    rubric_generator_node,
 )
 
 
@@ -20,10 +18,6 @@ def route_request(state: EvaluationState) -> str:
         return "mcq_exact_match_node"
     elif req_type == "evaluate_subjective":
         return "subjective_retrieval_node"
-    elif req_type == "generate_questions":
-        return "question_generator_node"
-    elif req_type == "generate_rubrics":
-        return "rubric_generator_node"
     return END
 
 
@@ -66,8 +60,6 @@ builder.add_node("mcq_llm_node", mcq_llm_node)
 builder.add_node("subjective_retrieval_node", subjective_retrieval_node)
 builder.add_node("evaluate_criterion_node", evaluate_criterion_node)
 builder.add_node("subjective_aggregate_node", subjective_aggregate_node)
-builder.add_node("question_generator_node", question_generator_node)
-builder.add_node("rubric_generator_node", rubric_generator_node)
 
 builder.add_edge(START, "router_node")
 
@@ -77,8 +69,6 @@ builder.add_conditional_edges(
     {
         "mcq_exact_match_node": "mcq_exact_match_node",
         "subjective_retrieval_node": "subjective_retrieval_node",
-        "question_generator_node": "question_generator_node",
-        "rubric_generator_node": "rubric_generator_node",
         END: END,
     },
 )
@@ -111,8 +101,5 @@ builder.add_conditional_edges(
 
 builder.add_edge("evaluate_criterion_node", "subjective_aggregate_node")
 builder.add_edge("subjective_aggregate_node", END)
-
-builder.add_edge("question_generator_node", END)
-builder.add_edge("rubric_generator_node", END)
 
 workflow = builder.compile()

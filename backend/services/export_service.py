@@ -1,10 +1,20 @@
 import csv
 import io
 import uuid
-import pandas as pd
+from openpyxl import Workbook
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from models.models import Exam, Student, User, Submission
+
+COLUMNS = [
+    "Roll Number",
+    "Full Name",
+    "Email",
+    "Attempt Status",
+    "Started At",
+    "Submitted At",
+    "Score",
+]
 
 
 class ExportService:
@@ -67,42 +77,24 @@ class ExportService:
 
         output = io.StringIO()
         writer = csv.writer(output)
-
-        writer.writerow(
-            [
-                "Roll Number",
-                "Full Name",
-                "Email",
-                "Attempt Status",
-                "Started At",
-                "Submitted At",
-                "Score",
-            ]
-        )
-
+        writer.writerow(COLUMNS)
         for row in data:
-            writer.writerow(
-                [
-                    row["Roll Number"],
-                    row["Full Name"],
-                    row["Email"],
-                    row["Attempt Status"],
-                    row["Started At"],
-                    row["Submitted At"],
-                    row["Score"],
-                ]
-            )
+            writer.writerow([row[column] for column in COLUMNS])
 
         return io.BytesIO(output.getvalue().encode("utf-8"))
 
     async def export_exam_excel(self, exam_id: uuid.UUID, db: AsyncSession) -> io.BytesIO:
         data = await self.get_exam_results_data(exam_id, db)
-        df = pd.DataFrame(data)
+
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "Results"
+        sheet.append(COLUMNS)
+        for row in data:
+            sheet.append([row[column] for column in COLUMNS])
 
         output = io.BytesIO()
-        with pd.ExcelWriter(output, engine="openpyxl") as writer:
-            df.to_excel(writer, index=False, sheet_name="Results")
-
+        workbook.save(output)
         output.seek(0)
         return output
 
