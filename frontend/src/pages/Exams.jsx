@@ -247,6 +247,18 @@ const Exams = () => {
                           >
                             📊 Submissions
                           </Link>
+                          <Link
+                            to={`/analytics/${exam.id}`}
+                            style={{
+                              flex: 1, textAlign: "center", padding: "8px 12px", borderRadius: 6,
+                              border: "1px solid #8B5CF6", background: "transparent", color: "#8B5CF6",
+                              fontSize: 13, fontWeight: 600, textDecoration: "none", transition: "all 0.2s",
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = "#F5F3FF"}
+                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                          >
+                            📈 Analytics
+                          </Link>
                         </div>
                       )}
 

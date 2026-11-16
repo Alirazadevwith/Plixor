@@ -162,56 +162,26 @@ const Results = () => {
     enabled: isTeacher,
   });
 
-  // 2. All Submissions across all exams (for Teacher, to calculate class stats)
-  const { data: teacherAllSubmissions = [], isLoading: allSubmissionsLoading, error: allSubmissionsError } = useQuery({
-    queryKey: ["teacher-all-submissions", exams],
+  // 2. One grouped call replaces the old loop of a request per exam plus one
+  // per section. Query keys no longer embed array objects, which used to
+  // refetch on every identity change.
+  const { data: overview = [], isLoading: overviewLoading, error: overviewError } = useQuery({
+    queryKey: ["teacher-overview"],
     queryFn: async () => {
-      try {
-        const promises = exams.map(ex => api.get(`/submissions/exam/${ex.id}`));
-        const responses = await Promise.all(promises);
-        return responses.flatMap(res => res.data);
-      } catch (err) {
-        console.error("Failed to load all submissions for teacher dashboard:", err);
-        throw err;
-      }
+      const res = await api.get("/analytics/overview");
+      return res.data;
     },
-    enabled: isTeacher && exams.length > 0,
+    enabled: isTeacher,
   });
 
   // 3. Submissions for the selected Exam (for Teacher view)
   const { data: examSubmissions = [], isLoading: examSubmissionsLoading, error: examSubmissionsError } = useQuery({
     queryKey: ["exam-submissions", activeExamId],
     queryFn: async () => {
-      try {
-        const res = await api.get(`/submissions/exam/${activeExamId}`);
-        return res.data;
-      } catch (err) {
-        console.error("Failed to load exam submissions for teacher view:", err);
-        throw err;
-      }
-    },
-    enabled: isTeacher && !!activeExamId,
-  });
-
-  // Fetch sections (for Teacher, to calculate expected student counts)
-  const { data: sections = [] } = useQuery({
-    queryKey: ["teacher-sections"],
-    queryFn: async () => {
-      const res = await api.get("/sections");
+      const res = await api.get(`/submissions/exam/${activeExamId}`);
       return res.data;
     },
-    enabled: isTeacher,
-  });
-
-  // Fetch all students across all sections
-  const { data: sectionStudents = [] } = useQuery({
-    queryKey: ["teacher-section-students", sections],
-    queryFn: async () => {
-      const promises = sections.map(sec => api.get(`/sections/${sec.id}/students`));
-      const responses = await Promise.all(promises);
-      return responses.map(res => res.data); // array of student lists
-    },
-    enabled: isTeacher && sections.length > 0,
+    enabled: isTeacher && !!activeExamId,
   });
 
   // 4. All My Submissions (for Student)
@@ -1177,34 +1147,19 @@ const Results = () => {
 
   // TEACHER: General performance dashboard (all exams with average stats & pass rate)
   if (isTeacher) {
-    // Calculate statistics for each exam
-    const examStats = exams.map(ex => {
-      const subs = teacherAllSubmissions.filter(s => s.exam_id === ex.id);
-      const evaluatedSubs = subs.filter(s => s.status === "evaluated" && s.total_score !== null);
-      
-      if (evaluatedSubs.length === 0) {
-        return {
-          ...ex,
-          count: subs.length,
-          avg: "—",
-          high: "—",
-          low: "—",
-          passRate: "—"
-        };
-      }
-      
-      const scores = evaluatedSubs.map(s => s.total_score);
-      const passCount = evaluatedSubs.filter(s => (s.total_score / ex.total_marks) >= 0.5).length;
-      
-      return {
-        ...ex,
-        count: subs.length,
-        avg: (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1),
-        high: Math.max(...scores).toFixed(1),
-        low: Math.min(...scores).toFixed(1),
-        passRate: ((passCount / evaluatedSubs.length) * 100).toFixed(0) + "%"
-      };
-    });
+    // The server computes these in one grouped query; the client only formats.
+    const examStats = overview.map(row => ({
+      id: row.exam_id,
+      title: row.title,
+      subject: row.subject,
+      status: row.status,
+      total_marks: row.total_marks,
+      count: row.total_submissions,
+      avg: row.evaluated_submissions ? row.average_score.toFixed(1) : "—",
+      high: row.evaluated_submissions ? row.highest_score.toFixed(1) : "—",
+      low: row.evaluated_submissions ? row.lowest_score.toFixed(1) : "—",
+      passRate: row.evaluated_submissions ? `${row.pass_rate.toFixed(0)}%` : "—",
+    }));
 
     return (
       <div>
@@ -1215,11 +1170,11 @@ const Results = () => {
           </p>
         </div>
 
-        {(examsLoading || allSubmissionsLoading) ? (
+        {overviewLoading ? (
           <Spinner />
-        ) : (examsError || allSubmissionsError) ? (
+        ) : overviewError ? (
           <ErrorMessage message="Failed to load performance analytics dashboard." />
-        ) : exams.length > 0 ? (
+        ) : examStats.length > 0 ? (
           <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", overflow: "hidden" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>

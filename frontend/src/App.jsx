@@ -8,6 +8,7 @@ import Sections from "./pages/Sections";
 import Exams from "./pages/Exams";
 import TakeExam from "./pages/TakeExam";
 import Results from "./pages/Results";
+import Analytics from "./pages/Analytics";
 import Layout from "./components/Layout";
 
 const queryClient = new QueryClient();
@@ -105,6 +106,15 @@ const AppContent = () => {
 
           <Route path="/results" element={<Results />} />
           <Route path="/results/:id" element={<Results />} />
+
+          <Route
+            path="/analytics/:id"
+            element={
+              <ProtectedRoute allowedRoles={["teacher", "admin"]}>
+                <Analytics />
+              </ProtectedRoute>
+            }
+          />
         </Route>
 
         <Route
