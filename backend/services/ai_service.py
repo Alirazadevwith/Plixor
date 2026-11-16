@@ -81,6 +81,16 @@ class AIService:
         if not submission:
             return
 
+        # Idempotent: a retry, a double submit, or a background task that runs
+        # twice must not create a second Evaluation or restate the score.
+        if submission.status == SubmissionStatus.evaluated:
+            return
+        existing = await db.execute(
+            select(Evaluation.id).where(Evaluation.submission_id == submission_id).limit(1)
+        )
+        if existing.scalar_one_or_none() is not None:
+            return
+
         q_result = await db.execute(
             select(Question).where(Question.exam_id == submission.exam_id)
         )

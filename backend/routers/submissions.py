@@ -226,13 +226,6 @@ async def submit_exam(
 
     background_tasks.add_task(ai_service.evaluate_submission, submission.id)
 
-    exam_result = await db.execute(select(Exam).where(Exam.id == submission.exam_id))
-    exam = exam_result.scalar_one_or_none()
-    if exam:
-        exam.status = ExamStatus.evaluated
-        db.add(exam)
-        await db.flush()
-
     return submission
 
 
@@ -303,8 +296,6 @@ async def override_evaluation(
 
     submission.total_score = req.total_score
     submission.status = SubmissionStatus.evaluated
-    exam.status = ExamStatus.evaluated
-    db.add(exam)
 
     db.add(evaluation)
     db.add(submission)
@@ -351,6 +342,7 @@ async def get_student_exam_submissions(
 async def log_cheating_event(
     id: uuid.UUID,
     event_in: CheatingLogCreate,
+    background_tasks: BackgroundTasks,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -380,13 +372,8 @@ async def log_cheating_event(
         auto_submitted = True
         db.add(submission)
         await db.flush()
-        await ai_service.evaluate_submission(submission.id)
-        exam_result = await db.execute(select(Exam).where(Exam.id == submission.exam_id))
-        exam = exam_result.scalar_one_or_none()
-        if exam:
-            exam.status = ExamStatus.evaluated
-            db.add(exam)
-            await db.flush()
+        # Same path as a manual submit: grading must not block the response.
+        background_tasks.add_task(ai_service.evaluate_submission, submission.id)
     else:
         db.add(submission)
         await db.flush()
