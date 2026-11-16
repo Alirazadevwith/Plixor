@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import api from "../api/api";
+import AnswerAttachment from "../components/AnswerAttachment";
 
 const TakeExam = () => {
   const { id: examId } = useParams();
@@ -10,6 +11,7 @@ const TakeExam = () => {
   const [examStarted, setExamStarted] = useState(false);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [localAnswers, setLocalAnswers] = useState({});
+  const [attachedQuestionIds, setAttachedQuestionIds] = useState({});
   const [warnings, setWarnings] = useState(0);
   const [warningMsg, setWarningMsg] = useState("");
   const [timeLeft, setTimeLeft] = useState(0);
@@ -522,7 +524,8 @@ const TakeExam = () => {
               })}
             </div>
           ) : (
-            <textarea
+            <>
+              <textarea
               value={localAnswers[currentQuestion?.id]?.text || ""}
               onChange={(e) => handleTextChange(currentQuestion.id, e.target.value)}
               onBlur={() => handleTextBlur(currentQuestion.id)}
@@ -543,7 +546,15 @@ const TakeExam = () => {
               }}
               placeholder="Write your answer here..."
               onFocus={(e) => e.target.style.borderColor = "#4A90E2"}
-            />
+              />
+              <AnswerAttachment
+                submissionId={submissionId}
+                questionId={currentQuestion.id}
+                onAttachmentChange={(hasFile) =>
+                  setAttachedQuestionIds((prev) => ({ ...prev, [currentQuestion.id]: hasFile }))
+                }
+              />
+            </>
           )}
 
           <div style={{
@@ -615,7 +626,9 @@ const TakeExam = () => {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
             {questions.map((q, idx) => {
               const isAnswered =
-                localAnswers[q.id]?.optId || (localAnswers[q.id]?.text && localAnswers[q.id].text.trim());
+                localAnswers[q.id]?.optId ||
+                (localAnswers[q.id]?.text && localAnswers[q.id].text.trim()) ||
+                attachedQuestionIds[q.id];
               const isCurrent = idx === currentQuestionIdx;
               return (
                 <button

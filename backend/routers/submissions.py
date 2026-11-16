@@ -151,9 +151,9 @@ async def get_submission(
         select(Submission)
         .where(Submission.id == id)
         .options(
-            selectinload(Submission.answers),
+            selectinload(Submission.answers).selectinload(StudentAnswer.attachment),
             selectinload(Submission.exam),
-            selectinload(Submission.student).selectinload(Student.user)
+            selectinload(Submission.student).selectinload(Student.user),
         )
     )
     submission = result.scalar_one_or_none()
@@ -346,7 +346,10 @@ async def get_student_exam_submissions(
     subs_result = await db.execute(
         select(Submission)
         .where(Submission.exam_id == exam_id, Submission.student_id == student.id)
-        .options(selectinload(Submission.answers), selectinload(Submission.exam))
+        .options(
+            selectinload(Submission.answers).selectinload(StudentAnswer.attachment),
+            selectinload(Submission.exam),
+        )
     )
     return list(subs_result.scalars().all())
 

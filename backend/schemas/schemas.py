@@ -194,12 +194,47 @@ class StudentAnswerSave(BaseModel):
     selected_option_id: Optional[uuid.UUID] = None
 
 
+class AttachmentResponse(BaseModel):
+    """What the student and teacher are told about an uploaded document.
+
+    Deliberately omits `extracted_text` and the bytes. The text is grading
+    input; echoing it back would let a client read a parsed copy of a field
+    it is not otherwise entitled to.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    filename: str
+    content_type: str
+    size_bytes: int
+    extraction_status: ExtractionStatus
+    extraction_error: Optional[str] = None
+    extracted_char_count: int = 0
+    uploaded_at: datetime
+
+    @model_validator(mode="before")
+    @classmethod
+    def derive_char_count(cls, data):
+        if hasattr(data, "extracted_text"):
+            return {
+                "filename": data.filename,
+                "content_type": data.content_type,
+                "size_bytes": data.size_bytes,
+                "extraction_status": data.extraction_status,
+                "extraction_error": data.extraction_error,
+                "extracted_char_count": len(data.extracted_text or ""),
+                "uploaded_at": data.uploaded_at,
+            }
+        return data
+
+
 class StudentAnswerResponse(SafeResponseModel):
     id: uuid.UUID
     question_id: uuid.UUID
     answer_text: Optional[str] = None
     selected_option_id: Optional[uuid.UUID] = None
     saved_at: datetime
+    attachment: Optional[AttachmentResponse] = None
 
 
 class SubmissionResponse(SafeResponseModel):
@@ -279,21 +314,3 @@ class EvaluationResponse(SafeResponseModel):
 class OverrideRequest(BaseModel):
     total_score: float = Field(ge=0)
     override_reason: str = Field(min_length=1)
-
-class AttachmentResponse(BaseModel):
-    """What the student and teacher are told about an uploaded document.
-
-    Deliberately omits `extracted_text` and the bytes. The text is grading
-    input; echoing it back would let a client read a parsed copy of a field
-    it is not otherwise entitled to.
-    """
-
-    model_config = ConfigDict(from_attributes=True)
-
-    filename: str
-    content_type: str
-    size_bytes: int
-    extraction_status: ExtractionStatus
-    extraction_error: Optional[str] = None
-    extracted_char_count: int = 0
-    uploaded_at: datetime

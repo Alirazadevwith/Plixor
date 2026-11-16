@@ -207,3 +207,38 @@ async def test_upload_against_a_question_from_another_exam_is_rejected(
         headers=auth_headers(sub.student.user),
     )
     assert res.status_code == 404
+
+
+async def test_submission_detail_exposes_attachment_metadata_to_the_teacher(
+    client, submission_with_question
+):
+    """The teacher needs to see the original alongside the AI's score."""
+    sub, question = await submission_with_question()
+    await client.post(
+        url(sub.id, question.id),
+        files={"file": ("essay.pdf", read_fixture("sample.pdf"), "application/pdf")},
+        headers=auth_headers(sub.student.user),
+    )
+
+    res = await client.get(
+        f"/api/submissions/{sub.id}", headers=auth_headers(sub.exam.teacher)
+    )
+    assert res.status_code == 200
+
+    answer = next(a for a in res.json()["answers"] if a["question_id"] == str(question.id))
+    assert answer["attachment"]["filename"] == "essay.pdf"
+    assert answer["attachment"]["extraction_status"] == "ok"
+    assert "extracted_text" not in answer["attachment"]
+
+
+async def test_submission_detail_has_null_attachment_when_none_uploaded(
+    client, submission_with_question, make_answer
+):
+    sub, question = await submission_with_question()
+    await make_answer(sub, question, answer_text="typed only")
+
+    res = await client.get(
+        f"/api/submissions/{sub.id}", headers=auth_headers(sub.exam.teacher)
+    )
+    answer = next(a for a in res.json()["answers"] if a["question_id"] == str(question.id))
+    assert answer["attachment"] is None

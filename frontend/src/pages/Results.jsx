@@ -52,6 +52,77 @@ const ErrorMessage = ({ message }) => (
   </div>
 );
 
+
+// Shown in the per-question breakdown so a teacher can open the original
+// next to the AI's score, and so an unreadable upload is visible rather than
+// silently scored as a blank page.
+const EXTRACTION_NOTE = {
+  ok: null,
+  no_text: "No text could be read from this document, so it contributed nothing to the score.",
+  unsupported: "This file type could not be read, so it contributed nothing to the score.",
+  too_large: "This file was too large to read, so it contributed nothing to the score.",
+  failed: "This document could not be opened, so it contributed nothing to the score.",
+};
+
+const AttachedDocument = ({ attachment, submissionId, questionId }) => {
+  const [downloading, setDownloading] = useState(false);
+  const note = EXTRACTION_NOTE[attachment.extraction_status];
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    try {
+      const res = await api.get(
+        `/submissions/${submissionId}/answers/${questionId}/attachment`,
+        { responseType: "blob" }
+      );
+      const href = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = href;
+      link.setAttribute("download", attachment.filename);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(href);
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: 12 }}>
+      <h3 style={{ fontSize: 12, fontWeight: 700, color: "#718096", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
+        <FileText size={13} /> Uploaded Document
+      </h3>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "12px 14px", background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: "#1A202C", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {attachment.filename}
+          </div>
+          <div style={{ fontSize: 11, color: "#718096" }}>
+            {(attachment.size_bytes / 1024).toFixed(0)} KB
+            {attachment.extracted_char_count > 0 && ` · ${attachment.extracted_char_count.toLocaleString()} characters graded`}
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleDownload}
+          disabled={downloading}
+          style={{ flexShrink: 0, padding: "7px 14px", borderRadius: 6, border: "1px solid #E2E8F0", background: "#FFFFFF", color: "#4A5568", fontSize: 12, fontWeight: 600, cursor: downloading ? "wait" : "pointer" }}
+        >
+          {downloading ? "Downloading…" : "Download"}
+        </button>
+      </div>
+      {note && (
+        <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 6, background: "#FFF5F5", border: "1px solid #FED7D7", color: "#C53030", fontSize: 12, lineHeight: 1.5 }}>
+          <AlertTriangle size={12} style={{ display: "inline", marginRight: 6, verticalAlign: "-2px" }} />
+          {note}
+          {attachment.extraction_error ? ` ${attachment.extraction_error}` : ""}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Results = () => {
   const { id: paramId } = useParams();
   const navigate = useNavigate();
@@ -592,10 +663,20 @@ const Results = () => {
                         }}>
                           {activeStudAns?.answer_text ? (
                             activeStudAns.answer_text
+                          ) : activeStudAns?.attachment ? (
+                            <span style={{ color: "#A0AEC0", fontStyle: "italic" }}>Answered by uploaded document — see below.</span>
                           ) : (
                             <span style={{ color: "#A0AEC0", fontStyle: "italic" }}>No answer submitted for this question.</span>
                           )}
                         </div>
+                      )}
+
+                      {activeStudAns?.attachment && (
+                        <AttachedDocument
+                          attachment={activeStudAns.attachment}
+                          submissionId={selectedSubmissionId}
+                          questionId={activeQuestion.id}
+                        />
                       )}
                     </div>
 
