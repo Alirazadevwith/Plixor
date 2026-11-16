@@ -46,3 +46,17 @@ class BloomLevel(str, Enum):
     analyze = "analyze"
     evaluate = "evaluate"
     create = "create"
+
+class ExtractionStatus(str, Enum):
+    """Outcome of reading text out of an uploaded document.
+
+    Anything other than `ok` is shown to the student at upload and to the
+    teacher in the results view: a document we could not read must never be
+    graded silently as a blank answer.
+    """
+
+    ok = "ok"
+    no_text = "no_text"
+    unsupported = "unsupported"
+    too_large = "too_large"
+    failed = "failed"

@@ -9,13 +9,15 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     JSON,
+    LargeBinary,
     Text,
     Enum as SQLEnum,
     Uuid,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, deferred
 from core.database import Base
 from models.enums import (
+    ExtractionStatus,
     UserRole,
     ExamType,
     ExamStatus,
@@ -215,6 +217,50 @@ class StudentAnswer(Base):
     submission: Mapped["Submission"] = relationship("Submission", back_populates="answers")
     question: Mapped["Question"] = relationship()
     selected_option: Mapped[Optional["MCQOption"]] = relationship()
+    attachment: Mapped[Optional["AnswerAttachment"]] = relationship(
+        "AnswerAttachment",
+        back_populates="answer",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
+
+class AnswerAttachment(Base):
+    """A document a student submitted in place of (or alongside) typed text.
+
+    The original bytes live in `content`, which is deferred: an attachment row
+    is queried for its metadata far more often than for its payload, and a
+    plain select must not drag megabytes into memory.
+
+    `extracted_text` is filled at upload time, not at grading time, so the
+    student learns immediately that their scan has no text layer and a
+    re-grade never re-parses.
+    """
+
+    __tablename__ = "answer_attachments"
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    answer_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid,
+        ForeignKey("student_answers.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
+    )
+    filename: Mapped[str] = mapped_column(String(255), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[bytes] = deferred(mapped_column(LargeBinary, nullable=False))
+    extracted_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    extraction_status: Mapped[ExtractionStatus] = mapped_column(
+        SQLEnum(ExtractionStatus), nullable=False
+    )
+    extraction_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    uploaded_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    answer: Mapped["StudentAnswer"] = relationship(
+        "StudentAnswer", back_populates="attachment"
+    )
 
 
 class Evaluation(Base):
