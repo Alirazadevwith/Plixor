@@ -1,0 +1,36 @@
+Alembic migrations for PLIXOR.
+
+The database URL is read from application settings (core.config.settings),
+not from alembic.ini, so migrations and the app can never disagree about
+which database they mean. Set DATABASE_URL in the environment before
+running any command here.
+
+Everyday use
+------------
+
+    alembic upgrade head            # apply everything outstanding
+    alembic revision --autogenerate -m "what changed"
+    alembic downgrade -1            # step back one revision
+    alembic current                 # what the database is at
+
+Railway applies `alembic upgrade head` automatically via the Procfile's
+release command.
+
+ONE-TIME STEP for a database created before migrations existed
+--------------------------------------------------------------
+
+Until now the app built its schema by calling `Base.metadata.create_all()`
+on startup. A database built that way already contains all 14 tables but has
+no `alembic_version` row, so `alembic upgrade head` would try to CREATE TABLE
+over tables that exist and fail.
+
+Run this ONCE against each such database (production, staging, and any local
+plixor.db you want to keep):
+
+    alembic stamp head
+
+That records the baseline revision as already applied without touching any
+table. Afterwards `alembic upgrade head` behaves normally.
+
+A brand-new, empty database needs no stamp -- run `alembic upgrade head`
+directly.

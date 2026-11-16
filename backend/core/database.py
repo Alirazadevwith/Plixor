@@ -3,12 +3,22 @@ from sqlalchemy.orm import DeclarativeBase
 
 from core.config import settings
 
-db_url = settings.DATABASE_URL
+def build_engine_url() -> str:
+    """The database URL, exactly as configured.
 
-if "neon.tech" in db_url:
-    db_url = "sqlite+aiosqlite:///./plixor.db"
+    Deliberately does no rewriting. An earlier version swapped any URL
+    containing "neon.tech" for a local SQLite file, which silently put
+    production on an ephemeral disk.
+    """
+    url = settings.DATABASE_URL
+    if not url:
+        raise ValueError("DATABASE_URL is not set")
+    return url
 
-if "sqlite" in db_url:
+
+db_url = build_engine_url()
+
+if db_url.startswith("sqlite"):
     engine = create_async_engine(
         db_url,
         echo=settings.ENVIRONMENT == "development",

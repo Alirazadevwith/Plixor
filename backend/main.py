@@ -6,13 +6,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from core.config import settings
-from core.database import engine, Base
+from core.database import engine
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    """Schema is owned by Alembic (see Procfile's release command), not by
+    create_all -- create_all cannot alter an existing table, so it would
+    silently skip every change after the first deploy."""
     yield
     await engine.dispose()
 
