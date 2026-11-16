@@ -3,10 +3,12 @@ from typing import List
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from core.config import settings
 from core.database import AsyncSessionLocal
 from models.models import Submission, Question, StudentAnswer, Evaluation, MCQResult, CriterionScore
 from models.enums import QuestionType, SubmissionStatus
+from services.answer_resolution import resolve_effective_answer
 from schemas.ai_schemas import (
     AIGeneratedQuestion,
     AIGeneratedQuestionList,
@@ -97,7 +99,9 @@ class AIService:
         questions = q_result.scalars().all()
 
         ans_result = await db.execute(
-            select(StudentAnswer).where(StudentAnswer.submission_id == submission_id)
+            select(StudentAnswer)
+            .where(StudentAnswer.submission_id == submission_id)
+            .options(selectinload(StudentAnswer.attachment))
         )
         answers = {ans.question_id: ans for ans in ans_result.scalars().all()}
 
@@ -115,7 +119,9 @@ class AIService:
 
         for question in questions:
             answer = answers.get(question.id)
-            student_text = answer.answer_text if answer else ""
+            # An uploaded document is the answer for a subjective question; see
+            # services.answer_resolution for the precedence rules.
+            student_text = resolve_effective_answer(answer)
             selected_opt = answer.selected_option_id if answer else None
 
             inputs = {

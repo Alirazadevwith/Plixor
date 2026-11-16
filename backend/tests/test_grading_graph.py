@@ -82,3 +82,114 @@ async def test_mcq_grading_makes_no_llm_call(db, make_question, monkeypatch):
 
     result = await workflow.ainvoke(mcq_inputs(q, str(wrong.id)), config=cfg(db))
     assert result["final_score"] == 0.0
+
+
+class _StubStructuredLLM:
+    """Stands in for ChatGroq's structured-output runnable.
+
+    Grading a rubric criterion needs an LLM; what is under test here is that
+    the uploaded document's text reaches it and that the scores are persisted.
+    """
+
+    def __init__(self, response):
+        self._response = response
+
+    async def ainvoke(self, prompt):
+        _StubStructuredLLM.last_prompt = prompt
+        return self._response
+
+
+class _StubLLM:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def with_structured_output(self, schema):
+        from schemas.ai_schemas import AIEvaluationCriterionScore
+
+        return _StubStructuredLLM(
+            AIEvaluationCriterionScore(
+                criterion_id="stub",
+                score=4.0,
+                feedback="Covers the main idea.",
+                similarity_score=0.9,
+            )
+        )
+
+
+async def test_subjective_question_grades_from_an_uploaded_document(
+    db, make_submission, make_question, make_answer, monkeypatch
+):
+    import graph.nodes as nodes
+    from models.enums import ExtractionStatus, QuestionType, SubmissionStatus
+    from models.models import AnswerAttachment, CriterionScore, Evaluation
+    from services.ai_service import ai_service
+    from sqlalchemy import select
+
+    monkeypatch.setattr(nodes, "ChatGroq", _StubLLM)
+
+    sub = await make_submission(status=SubmissionStatus.submitted)
+    question = await make_question(exam=sub.exam, question_type=QuestionType.subjective)
+    answer = await make_answer(sub, question)
+    db.add(
+        AnswerAttachment(
+            answer_id=answer.id,
+            filename="essay.pdf",
+            content_type="application/pdf",
+            size_bytes=10,
+            content=b"irrelevant",
+            extracted_text="Photosynthesis converts light into glucose using chlorophyll.",
+            extraction_status=ExtractionStatus.ok,
+        )
+    )
+    await db.flush()
+
+    await ai_service.evaluate_submission(sub.id, db)
+
+    scores = (
+        await db.execute(
+            select(CriterionScore)
+            .join(Evaluation, CriterionScore.evaluation_id == Evaluation.id)
+            .where(Evaluation.submission_id == sub.id)
+        )
+    ).scalars().all()
+
+    assert len(scores) == len(question.rubrics)
+    assert "chlorophyll" in _StubStructuredLLM.last_prompt
+    await db.refresh(sub)
+    assert sub.status == SubmissionStatus.evaluated
+
+
+async def test_unreadable_upload_is_not_graded_as_a_blank_answer(
+    db, make_submission, make_question, make_answer, monkeypatch
+):
+    """The scanned-PDF case: the student must not quietly score zero."""
+    import graph.nodes as nodes
+    from models.enums import ExtractionStatus, QuestionType, SubmissionStatus
+    from models.models import AnswerAttachment
+    from services.answer_resolution import resolve_effective_answer
+
+    monkeypatch.setattr(nodes, "ChatGroq", _StubLLM)
+
+    sub = await make_submission(status=SubmissionStatus.submitted)
+    question = await make_question(exam=sub.exam, question_type=QuestionType.subjective)
+    answer = await make_answer(sub, question)
+    db.add(
+        AnswerAttachment(
+            answer_id=answer.id,
+            filename="scan.pdf",
+            content_type="application/pdf",
+            size_bytes=10,
+            content=b"irrelevant",
+            extracted_text=None,
+            extraction_status=ExtractionStatus.no_text,
+            extraction_error="No text could be read from this file.",
+        )
+    )
+    await db.flush()
+    await db.refresh(answer, attribute_names=["attachment"])
+
+    # The grading input is empty, and the attachment carries the reason why --
+    # which is what the UI surfaces to student and teacher.
+    assert resolve_effective_answer(answer) == ""
+    assert answer.attachment.extraction_status == ExtractionStatus.no_text
+    assert answer.attachment.extraction_error
