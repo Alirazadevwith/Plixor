@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 from models.enums import (
+    ExtractionStatus,
     UserRole,
     ExamType,
     ExamStatus,
@@ -278,3 +279,21 @@ class EvaluationResponse(SafeResponseModel):
 class OverrideRequest(BaseModel):
     total_score: float = Field(ge=0)
     override_reason: str = Field(min_length=1)
+
+class AttachmentResponse(BaseModel):
+    """What the student and teacher are told about an uploaded document.
+
+    Deliberately omits `extracted_text` and the bytes. The text is grading
+    input; echoing it back would let a client read a parsed copy of a field
+    it is not otherwise entitled to.
+    """
+
+    model_config = ConfigDict(from_attributes=True)
+
+    filename: str
+    content_type: str
+    size_bytes: int
+    extraction_status: ExtractionStatus
+    extraction_error: Optional[str] = None
+    extracted_char_count: int = 0
+    uploaded_at: datetime

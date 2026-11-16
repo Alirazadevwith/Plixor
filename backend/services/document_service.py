@@ -111,7 +111,11 @@ async def extract_text(filename: str, data: bytes) -> ExtractionResult:
         )
 
     if not data:
-        return ExtractionResult(status=ExtractionStatus.no_text, detected_type=TYPE_TEXT)
+        return ExtractionResult(
+            status=ExtractionStatus.no_text,
+            error="The file is empty.",
+            detected_type=TYPE_TEXT,
+        )
 
     media_type = _detect_type(data)
     if media_type not in ALLOWED_TYPES:
@@ -133,7 +137,17 @@ async def extract_text(filename: str, data: bytes) -> ExtractionResult:
 
     text = text.strip()
     if not text:
-        return ExtractionResult(status=ExtractionStatus.no_text, detected_type=media_type)
+        # Every non-ok status carries a reason: a document nobody can read must
+        # not reach grading as a silent blank.
+        return ExtractionResult(
+            status=ExtractionStatus.no_text,
+            error=(
+                "No text could be read from this file. If it is a scan or a "
+                "photo, the words are an image -- please upload a version with "
+                "selectable text."
+            ),
+            detected_type=media_type,
+        )
 
     return ExtractionResult(
         status=ExtractionStatus.ok,

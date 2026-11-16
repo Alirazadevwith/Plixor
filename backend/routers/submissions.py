@@ -1,7 +1,17 @@
+import io
 import uuid
 from datetime import datetime, timezone
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    UploadFile,
+    status,
+)
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -12,7 +22,9 @@ from core.dependencies import (
     require_teacher,
 )
 from models.models import (
+    AnswerAttachment,
     Exam,
+    Question,
     Submission,
     Student,
     StudentAnswer,
@@ -22,6 +34,7 @@ from models.models import (
 )
 from models.enums import UserRole, SubmissionStatus, ExamStatus
 from schemas.schemas import (
+    AttachmentResponse,
     SubmissionResponse,
     SubmissionStartResponse,
     StudentAnswerSave,
@@ -34,6 +47,7 @@ from schemas.schemas import (
     OverrideRequest,
 )
 from services.ai_service import ai_service
+from services.document_service import MAX_UPLOAD_BYTES, extract_text
 
 router = APIRouter()
 
@@ -402,3 +416,198 @@ async def get_suspicious_logs(
         .order_by(CheatingLog.timestamp.desc())
     )
     return list(logs_result.scalars().all())
+
+
+async def _load_answer_for_attachment(
+    submission_id: uuid.UUID,
+    question_id: uuid.UUID,
+    db: AsyncSession,
+) -> tuple[Submission, Question]:
+    """The submission and question an attachment route is addressing.
+
+    404s when the question belongs to a different exam, so a student cannot
+    attach a document to a question they were never asked.
+    """
+    sub_result = await db.execute(select(Submission).where(Submission.id == submission_id))
+    submission = sub_result.scalar_one_or_none()
+    if not submission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+
+    q_result = await db.execute(
+        select(Question).where(
+            Question.id == question_id, Question.exam_id == submission.exam_id
+        )
+    )
+    question = q_result.scalar_one_or_none()
+    if not question:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Question not found on this exam",
+        )
+
+    return submission, question
+
+
+async def _authorize_attachment_read(
+    submission: Submission, user: User, db: AsyncSession
+) -> None:
+    """The owning student, the exam's teacher, or an admin."""
+    if user.role == UserRole.admin:
+        return
+
+    if user.role == UserRole.student:
+        await _require_own_submission(submission, user, db)
+        return
+
+    exam_result = await db.execute(select(Exam).where(Exam.id == submission.exam_id))
+    exam = exam_result.scalar_one_or_none()
+    if not exam or exam.teacher_id != user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+
+def _attachment_response(attachment: AnswerAttachment) -> AttachmentResponse:
+    return AttachmentResponse(
+        filename=attachment.filename,
+        content_type=attachment.content_type,
+        size_bytes=attachment.size_bytes,
+        extraction_status=attachment.extraction_status,
+        extraction_error=attachment.extraction_error,
+        extracted_char_count=len(attachment.extracted_text or ""),
+        uploaded_at=attachment.uploaded_at,
+    )
+
+
+@router.post(
+    "/{id}/answers/{question_id}/attachment",
+    response_model=AttachmentResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_attachment(
+    id: uuid.UUID,
+    question_id: uuid.UUID,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    submission, question = await _load_answer_for_attachment(id, question_id, db)
+    await _require_own_submission(submission, current_user, db)
+
+    if submission.status != SubmissionStatus.in_progress:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This exam has already been submitted",
+        )
+
+    data = await file.read()
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
+        )
+
+    result = await extract_text(file.filename or "upload", data)
+
+    ans_result = await db.execute(
+        select(StudentAnswer).where(
+            StudentAnswer.submission_id == id, StudentAnswer.question_id == question_id
+        )
+    )
+    answer = ans_result.scalar_one_or_none()
+    if not answer:
+        answer = StudentAnswer(
+            submission_id=id,
+            question_id=question_id,
+            saved_at=datetime.now(timezone.utc),
+        )
+        db.add(answer)
+        await db.flush()
+
+    existing = await db.execute(
+        select(AnswerAttachment).where(AnswerAttachment.answer_id == answer.id)
+    )
+    previous = existing.scalar_one_or_none()
+    if previous:
+        await db.delete(previous)
+        await db.flush()
+
+    attachment = AnswerAttachment(
+        answer_id=answer.id,
+        filename=file.filename or "upload",
+        content_type=result.detected_type or "application/octet-stream",
+        size_bytes=len(data),
+        content=data,
+        extracted_text=result.text or None,
+        extraction_status=result.status,
+        extraction_error=result.error,
+        uploaded_at=datetime.now(timezone.utc),
+    )
+    db.add(attachment)
+    await db.flush()
+
+    return _attachment_response(attachment)
+
+
+@router.get("/{id}/answers/{question_id}/attachment")
+async def download_attachment(
+    id: uuid.UUID,
+    question_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    submission, _ = await _load_answer_for_attachment(id, question_id, db)
+    await _authorize_attachment_read(submission, current_user, db)
+
+    result = await db.execute(
+        select(AnswerAttachment)
+        .join(StudentAnswer, AnswerAttachment.answer_id == StudentAnswer.id)
+        .where(
+            StudentAnswer.submission_id == id,
+            StudentAnswer.question_id == question_id,
+        )
+    )
+    attachment = result.scalar_one_or_none()
+    if not attachment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No attachment found")
+
+    content = await db.scalar(
+        select(AnswerAttachment.content).where(AnswerAttachment.id == attachment.id)
+    )
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type=attachment.content_type,
+        headers={"Content-Disposition": f'attachment; filename="{attachment.filename}"'},
+    )
+
+
+@router.delete(
+    "/{id}/answers/{question_id}/attachment", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_attachment(
+    id: uuid.UUID,
+    question_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    submission, _ = await _load_answer_for_attachment(id, question_id, db)
+    await _require_own_submission(submission, current_user, db)
+
+    if submission.status != SubmissionStatus.in_progress:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This exam has already been submitted",
+        )
+
+    result = await db.execute(
+        select(AnswerAttachment)
+        .join(StudentAnswer, AnswerAttachment.answer_id == StudentAnswer.id)
+        .where(
+            StudentAnswer.submission_id == id,
+            StudentAnswer.question_id == question_id,
+        )
+    )
+    attachment = result.scalar_one_or_none()
+    if not attachment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No attachment found")
+
+    await db.delete(attachment)
+    await db.flush()

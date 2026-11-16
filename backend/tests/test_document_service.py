@@ -87,3 +87,18 @@ async def test_a_zip_that_is_not_a_docx_is_unsupported():
 
     result = await extract_text("archive.docx", buf.getvalue())
     assert result.status == ExtractionStatus.unsupported
+
+
+async def test_every_non_ok_status_carries_a_reason():
+    """A student has to be told why their upload could not be read."""
+    cases = [
+        ("scan.pdf", read_fixture("image_only.pdf")),
+        ("fake.pdf", read_fixture("actually_a_png.pdf")),
+        ("empty.txt", b""),
+        ("broken.pdf", b"%PDF-1.4\nnot a real pdf"),
+        ("big.pdf", b"%PDF-" + b"0" * MAX_UPLOAD_BYTES),
+    ]
+    for name, data in cases:
+        result = await extract_text(name, data)
+        assert result.status != ExtractionStatus.ok, name
+        assert result.error, f"{name} ({result.status}) gave no reason"
