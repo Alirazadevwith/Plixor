@@ -1,15 +1,20 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AppProvider, useApp } from "./hooks/useApp";
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Sections from "./pages/Sections";
-import Exams from "./pages/Exams";
-import TakeExam from "./pages/TakeExam";
-import Results from "./pages/Results";
-import Analytics from "./pages/Analytics";
+
+// Split per route: a student sitting an exam should not download the
+// teacher's analytics and section-management code to get there.
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Sections = lazy(() => import("./pages/Sections"));
+const Exams = lazy(() => import("./pages/Exams"));
+const TakeExam = lazy(() => import("./pages/TakeExam"));
+const Results = lazy(() => import("./pages/Results"));
+const Analytics = lazy(() => import("./pages/Analytics"));
 import Layout from "./components/Layout";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const queryClient = new QueryClient();
 
@@ -62,9 +67,23 @@ const PublicRoute = ({ children }) => {
   return children;
 };
 
+const RouteFallback = () => (
+  <div style={{
+    display: "flex", alignItems: "center", justifyContent: "center",
+    minHeight: "100vh", background: "var(--bg-main)",
+  }}>
+    <div style={{
+      width: 40, height: 40, border: "3px solid var(--border)",
+      borderTopColor: "var(--primary)", borderRadius: "50%",
+      animation: "spin 0.8s linear infinite",
+    }} />
+  </div>
+);
+
 const AppContent = () => {
   return (
     <BrowserRouter>
+      <Suspense fallback={<RouteFallback />}>
       <Routes>
         <Route path="/" element={<Landing />} />
 
@@ -128,17 +147,20 @@ const AppContent = () => {
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 };
 
 const App = () => {
   return (
-    <QueryClientProvider client={queryClient}>
-      <AppProvider>
-        <AppContent />
-      </AppProvider>
-    </QueryClientProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AppProvider>
+          <AppContent />
+        </AppProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 };
 

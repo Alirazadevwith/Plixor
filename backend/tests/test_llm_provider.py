@@ -73,6 +73,32 @@ def test_every_provider_has_a_model_for_every_purpose(provider, purpose):
     assert model_for(provider, purpose)
 
 
+def test_model_for_reads_the_configured_id_not_a_hardcoded_one(monkeypatch):
+    """The Settings field existing is not enough -- the resolver has to use it.
+
+    An earlier version added the settings and left MODELS hardcoded, so
+    changing GROQ_GRADING_MODEL in .env had no effect at all.
+    """
+    from core.config import settings as live
+
+    monkeypatch.setattr(live, "GROQ_GRADING_MODEL", "some/other-model")
+    assert model_for(Provider.groq, Purpose.grading) == "some/other-model"
+
+
+def test_every_purpose_and_provider_reads_its_own_setting(monkeypatch):
+    from core.config import settings as live
+
+    cases = [
+        (Provider.groq, Purpose.grading, "GROQ_GRADING_MODEL"),
+        (Provider.groq, Purpose.generation, "GROQ_GENERATION_MODEL"),
+        (Provider.gemini, Purpose.grading, "GEMINI_GRADING_MODEL"),
+        (Provider.gemini, Purpose.generation, "GEMINI_GENERATION_MODEL"),
+    ]
+    for provider, purpose, setting in cases:
+        monkeypatch.setattr(live, setting, f"probe/{setting}")
+        assert model_for(provider, purpose) == f"probe/{setting}"
+
+
 def test_groq_grades_with_the_larger_model():
     """Grading is the most consequential call in the product, so it never gets a
     smaller model than question generation -- which the original code had
@@ -89,3 +115,37 @@ def test_no_model_is_a_speech_or_safety_model():
             model = model_for(provider, purpose)
             assert "whisper" not in model
             assert "prompt-guard" not in model
+
+
+# --- a wrong model id must say which setting to change ---
+
+def test_model_not_found_names_the_setting_to_change():
+    """The llama ids the original code hardcoded 404 on some Groq accounts.
+    A raw provider error leaves the teacher with nothing to act on."""
+    from services.llm_provider import explain_provider_error
+
+    raw = Exception(
+        "Error code: 404 - {'error': {'message': 'The model "
+        "`llama-3.3-70b-versatile` does not exist or you do not have access "
+        "to it.', 'code': 'model_not_found'}}"
+    )
+    message = explain_provider_error(raw, Provider.groq, Purpose.grading)
+
+    assert "GROQ_GRADING_MODEL" in message
+    assert "llama-3.3-70b-versatile" in message
+
+
+def test_auth_error_names_the_api_key_setting():
+    from services.llm_provider import explain_provider_error
+
+    raw = Exception("Error code: 401 - {'error': {'message': 'Invalid API Key'}}")
+    message = explain_provider_error(raw, Provider.gemini, Purpose.generation)
+
+    assert "GEMINI_API_KEY" in message
+
+
+def test_an_unrecognised_error_is_passed_through():
+    from services.llm_provider import explain_provider_error
+
+    message = explain_provider_error(Exception("connection reset"), Provider.groq, Purpose.grading)
+    assert "connection reset" in message

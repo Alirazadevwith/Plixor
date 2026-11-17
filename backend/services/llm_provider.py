@@ -48,22 +48,20 @@ ENV_VAR = {
     Provider.groq: "GROQ_API_KEY",
 }
 
+# Which Settings field holds each model id. Resolved at call time, not import
+# time, so changing one in the environment actually takes effect -- and so a
+# test can monkeypatch it.
+#
 # Grading is never given a smaller model than generation. The original code had
 # this backwards: generation ran on llama-3.3-70b while grading -- the call that
-# assigns marks -- ran on llama-3.1-8b-instant.
-MODELS = {
-    Provider.gemini: {
-        Purpose.grading: "gemini-2.5-pro",
-        Purpose.generation: "gemini-2.5-flash",
-    },
-    Provider.groq: {
-        # The llama-3.x models the original code named are not served to every
-        # Groq account -- `GET /openai/v1/models` is the source of truth for a
-        # given key. Both of these are verified to support structured output,
-        # which the grading pipeline requires.
-        Purpose.grading: "openai/gpt-oss-120b",
-        Purpose.generation: "openai/gpt-oss-20b",
-    },
+# assigns marks -- ran on llama-3.1-8b-instant. The defaults live in
+# core/config.py; the Groq ones are verified against GET /openai/v1/models,
+# because the llama ids are not served to every account.
+MODEL_SETTING = {
+    (Provider.gemini, Purpose.grading): "GEMINI_GRADING_MODEL",
+    (Provider.gemini, Purpose.generation): "GEMINI_GENERATION_MODEL",
+    (Provider.groq, Purpose.grading): "GROQ_GRADING_MODEL",
+    (Provider.groq, Purpose.generation): "GROQ_GENERATION_MODEL",
 }
 
 
@@ -111,7 +109,10 @@ def resolve_provider(
 
 
 def model_for(provider: Provider, purpose: Purpose) -> str:
-    return MODELS[provider][purpose]
+    """The configured model id for this provider and purpose."""
+    from core.config import settings
+
+    return getattr(settings, MODEL_SETTING[(provider, purpose)])
 
 
 def describe_configuration() -> str:
@@ -180,6 +181,40 @@ def get_chat_model(purpose: Purpose, **kwargs):
         groq_api_key=settings.GROQ_API_KEY,
         **kwargs,
     )
+
+
+def explain_provider_error(exc: Exception, provider: Provider, purpose: Purpose) -> str:
+    """Turn a provider error into something the operator can act on.
+
+    Model ids are the most likely thing to go stale -- providers rename and
+    retire them, and the llama ids this project originally hardcoded return
+    404 on accounts that are not served them. A raw 404 leaves a teacher
+    staring at "AI Service Error"; naming the setting to change does not.
+    """
+    raw = str(exc)
+    lowered = raw.lower()
+
+    if "model_not_found" in lowered or "does not exist" in lowered:
+        setting = MODEL_SETTING[(provider, purpose)]
+        return (
+            f"The configured {purpose.value} model is not available on this "
+            f"{provider.value} account. Set {setting} in the backend environment "
+            f"to a model the account can use. Provider said: {raw}"
+        )
+
+    if "invalid api key" in lowered or "401" in raw or "unauthenticated" in lowered:
+        return (
+            f"The {provider.value} API key was rejected. Check {ENV_VAR[provider]} "
+            f"in the backend environment. Provider said: {raw}"
+        )
+
+    if "rate limit" in lowered or "429" in raw:
+        return (
+            f"The {provider.value} account is rate limited. Grading can be retried "
+            f"in a moment. Provider said: {raw}"
+        )
+
+    return raw
 
 
 class NoProviderConfigured(RuntimeError):

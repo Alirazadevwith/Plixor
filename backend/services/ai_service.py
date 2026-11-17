@@ -15,7 +15,13 @@ from schemas.ai_schemas import (
     AIGeneratedRubricCriterion,
     AIGeneratedRubrics,
 )
-from services.llm_provider import NoProviderConfigured, Purpose, get_chat_model
+from services.llm_provider import (
+    NoProviderConfigured,
+    Purpose,
+    explain_provider_error,
+    get_chat_model,
+    resolve_provider,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +55,7 @@ class AIService:
         except NoProviderConfigured as e:
             raise HTTPException(status_code=503, detail=str(e))
         except Exception as e:
-            raise HTTPException(status_code=503, detail=f"AI Service Error: {str(e)}")
+            raise HTTPException(status_code=503, detail=self._explain(e, Purpose.generation))
 
     async def generate_rubric(
         self, question_text: str, model_answer: str, marks: float
@@ -74,7 +80,20 @@ class AIService:
         except NoProviderConfigured as e:
             raise HTTPException(status_code=503, detail=str(e))
         except Exception as e:
-            raise HTTPException(status_code=503, detail=f"AI Service Error: {str(e)}")
+            raise HTTPException(status_code=503, detail=self._explain(e, Purpose.generation))
+
+    @staticmethod
+    def _explain(exc: Exception, purpose: Purpose) -> str:
+        from core.config import settings
+
+        provider = resolve_provider(
+            groq_key=settings.GROQ_API_KEY,
+            gemini_key=settings.GEMINI_API_KEY,
+            override=settings.AI_PROVIDER,
+        )
+        if provider is None:
+            return str(exc)
+        return explain_provider_error(exc, provider, purpose)
 
     async def evaluate_submission(self, submission_id: uuid.UUID, db: AsyncSession = None):
         if db is None:
@@ -93,15 +112,17 @@ class AIService:
         try:
             await self._do_evaluate(submission_id, db)
             await db.commit()
-        except Exception:
+        except Exception as exc:
             logger.exception("Grading failed for submission %s", submission_id)
             await db.rollback()
             # A separate session, because the one above is now in a failed
             # transaction and -- when the caller supplied it -- is not ours to
             # drive. The partial grading rolls back; the status must persist.
-            await self._mark_grading_failed(submission_id)
+            await self._mark_grading_failed(
+                submission_id, self._explain(exc, Purpose.grading)
+            )
 
-    async def _mark_grading_failed(self, submission_id: uuid.UUID):
+    async def _mark_grading_failed(self, submission_id: uuid.UUID, reason: str = ""):
         try:
             async with AsyncSessionLocal() as db:
                 submission = await db.scalar(
@@ -111,6 +132,17 @@ class AIService:
                     submission.status = SubmissionStatus.grading_failed
                     submission.total_score = None
                     db.add(submission)
+                    # The reason belongs where the teacher looks, not only in
+                    # container stdout.
+                    if reason:
+                        db.add(
+                            Evaluation(
+                                submission_id=submission_id,
+                                total_score=0.0,
+                                needs_review=True,
+                                review_reason=reason[:2000],
+                            )
+                        )
                     await db.commit()
         except Exception:
             logger.exception(
@@ -125,15 +157,27 @@ class AIService:
 
         # Idempotent: a retry, a double submit, or a background task that runs
         # twice must not create a second Evaluation or restate the score.
-        # grading_failed is deliberately not terminal -- a transient provider
-        # outage has to be retryable.
         if submission.status == SubmissionStatus.evaluated:
             return
-        existing = await db.execute(
-            select(Evaluation.id).where(Evaluation.submission_id == submission_id).limit(1)
-        )
-        if existing.scalar_one_or_none() is not None:
-            return
+
+        if submission.status == SubmissionStatus.grading_failed:
+            # Not terminal: a transient outage has to be retryable. The marker
+            # Evaluation recording why it failed would otherwise trip the
+            # existence check below and block the retry forever.
+            stale = await db.execute(
+                select(Evaluation).where(Evaluation.submission_id == submission_id)
+            )
+            for row in stale.scalars().all():
+                await db.delete(row)
+            await db.flush()
+        else:
+            existing = await db.execute(
+                select(Evaluation.id)
+                .where(Evaluation.submission_id == submission_id)
+                .limit(1)
+            )
+            if existing.scalar_one_or_none() is not None:
+                return
 
         q_result = await db.execute(
             select(Question).where(Question.exam_id == submission.exam_id)

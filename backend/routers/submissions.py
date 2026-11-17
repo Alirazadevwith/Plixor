@@ -656,3 +656,60 @@ async def delete_attachment(
 
     await db.delete(attachment)
     await db.flush()
+
+
+@router.post("/{id}/regrade", response_model=SubmissionResponse)
+async def regrade_submission(
+    id: uuid.UUID,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(require_teacher),
+    db: AsyncSession = Depends(get_db),
+):
+    """Re-run grading for a submission whose grading did not complete.
+
+    Exists because the results view tells a teacher they can retry a failed
+    grading. Teacher-only: a student could otherwise re-roll a mark they did
+    not like.
+
+    Deliberately refuses an already-evaluated submission -- re-grading would
+    discard scores the teacher may already have acted on, and `override` is
+    the right tool for changing a finished result.
+    """
+    sub_result = await db.execute(select(Submission).where(Submission.id == id))
+    submission = sub_result.scalar_one_or_none()
+    if not submission:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+
+    await _authorize_submission_read(submission, current_user, db)
+
+    if submission.status == SubmissionStatus.evaluated:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "This submission has already been graded. Use override to change "
+                "the score rather than re-grading."
+            ),
+        )
+    if submission.status == SubmissionStatus.in_progress:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This exam has not been submitted yet.",
+        )
+
+    # A partial Evaluation left by an interrupted run would hit the uniqueness
+    # constraint and block the retry.
+    existing = await db.execute(
+        select(Evaluation).where(Evaluation.submission_id == id)
+    )
+    for stale in existing.scalars().all():
+        await db.delete(stale)
+    await db.flush()
+
+    submission.status = SubmissionStatus.submitted
+    submission.total_score = None
+    db.add(submission)
+    await db.flush()
+
+    background_tasks.add_task(ai_service.evaluate_submission, submission.id)
+
+    return submission

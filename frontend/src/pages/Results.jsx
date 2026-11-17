@@ -5,7 +5,7 @@ import { useApp } from "../hooks/useApp";
 import api from "../api/api";
 import SubmissionStatusBadge from "../components/SubmissionStatusBadge";
 import {
-  ChevronLeft, Check, X, AlertCircle, Award, BookOpen, MessageSquare, FileText, Info, AlertTriangle, ArrowRight, Clock, User as UserIcon
+  ChevronLeft, Check, X, AlertCircle, Award, BookOpen, MessageSquare, FileText, Info, AlertTriangle, ArrowRight, Clock, RefreshCw, User as UserIcon
 } from "lucide-react";
 
 const inputStyle = {
@@ -240,6 +240,19 @@ const Results = () => {
     enabled: !!activeExamId,
   });
 
+  const regradeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post(`/submissions/${selectedSubmissionId}/regrade`);
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["submission-detail", selectedSubmissionId] });
+      queryClient.invalidateQueries({ queryKey: ["evaluation", selectedSubmissionId] });
+      queryClient.invalidateQueries({ queryKey: ["exam-submissions", activeExamId] });
+      queryClient.invalidateQueries({ queryKey: ["teacher-overview"] });
+    },
+  });
+
   // Grade Override mutation
   const overrideMutation = useMutation({
     mutationFn: async ({ score, reason }) => {
@@ -377,8 +390,31 @@ const Results = () => {
             <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
             <div>
               <strong>Automatic grading could not complete.</strong> The AI provider was
-              unreachable or rejected the request. Nothing has been scored. You can retry by
-              resubmitting the exam for grading, or set the score manually below.
+              unreachable or rejected the request. Nothing has been scored.
+              {isTeacher && " Retry grading, or set the score manually below."}
+              {isTeacher && (
+                <div style={{ marginTop: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => regradeMutation.mutate()}
+                    disabled={regradeMutation.isPending}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 6,
+                      padding: "7px 14px", borderRadius: 6, border: "1px solid #FC8181",
+                      background: "#FFFFFF", color: "#C53030", fontSize: 12,
+                      fontWeight: 600, cursor: regradeMutation.isPending ? "wait" : "pointer",
+                    }}
+                  >
+                    <RefreshCw size={13} className={regradeMutation.isPending ? "spin" : undefined} />
+                    {regradeMutation.isPending ? "Retrying…" : "Retry grading"}
+                  </button>
+                  {regradeMutation.isError && (
+                    <span style={{ marginLeft: 10, fontSize: 12 }}>
+                      {regradeMutation.error?.response?.data?.detail || "Retry failed."}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

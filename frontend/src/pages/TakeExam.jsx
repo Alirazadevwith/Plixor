@@ -3,7 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import api from "../api/api";
 import AnswerAttachment from "../components/AnswerAttachment";
-import { AlertTriangle, ShieldCheck, CheckCircle2, PartyPopper } from "lucide-react";
+import { AlertTriangle, ShieldCheck, CheckCircle2, PartyPopper, X } from "lucide-react";
 
 const TakeExam = () => {
   const { id: examId } = useParams();
@@ -17,6 +17,9 @@ const TakeExam = () => {
   const [warningMsg, setWarningMsg] = useState("");
   const [timeLeft, setTimeLeft] = useState(0);
   const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [autoSubmitReason, setAutoSubmitReason] = useState("");
   const [isViolationSubmit, setIsViolationSubmit] = useState(false);
   const timerRef = useRef(null);
 
@@ -99,21 +102,28 @@ const TakeExam = () => {
         document.exitFullscreen().catch(() => {});
       }
       localStorage.removeItem(`exam_timer_${submissionId}`);
-      
+      setConfirmSubmit(false);
+      setSubmitError("");
+
+      // Native alert()/confirm() block every browser event until dismissed.
+      // During a fullscreen-locked exam that is actively harmful: the dialog
+      // can drop fullscreen and register as a proctoring violation against a
+      // student who did nothing wrong.
       if (data.isViolation || isViolationSubmit) {
-        alert("Exam auto-submitted due to violations.");
-        navigate("/dashboard", { replace: true });
+        setAutoSubmitReason(
+          "Your exam was submitted automatically because the integrity limit was reached."
+        );
       } else if (data.isAutoSubmit) {
-        alert("Exam auto-submitted: Time limit expired.");
-        navigate("/dashboard", { replace: true });
+        setAutoSubmitReason("Time expired, so your exam was submitted automatically.");
       } else {
-        alert("Exam submitted successfully!");
-        navigate("/dashboard");
+        setShowSubmitModal(true);
       }
     },
     onError: (error) => {
-      console.error("Exam submission failed:", error);
-      alert(error.response?.data?.detail || "Failed to submit exam. Please try again.");
+      setConfirmSubmit(false);
+      setSubmitError(
+        error.response?.data?.detail || "Failed to submit exam. Please try again."
+      );
     },
   });
 
@@ -136,11 +146,7 @@ const TakeExam = () => {
     submitMutation.mutate({ isAutoSubmit: true, isViolation });
   };
 
-  const handleManualSubmit = () => {
-    if (confirm("Are you sure you want to submit your exam?")) {
-      submitMutation.mutate();
-    }
-  };
+  const handleManualSubmit = () => setConfirmSubmit(true);
 
   const handleOptionSelect = (qid, optionId) => {
     setLocalAnswers((prev) => ({
@@ -260,6 +266,34 @@ const TakeExam = () => {
   };
 
   const isTimeLow = timeLeft > 0 && timeLeft <= 300;
+
+  if (autoSubmitReason) {
+    return (
+      <div style={{
+        minHeight: "100vh", background: "#F7F8FC", display: "flex",
+        flexDirection: "column", alignItems: "center", justifyContent: "center",
+        padding: 24, fontFamily: "'Inter', sans-serif", textAlign: "center",
+      }}>
+        <AlertTriangle size={48} color="#E53E3E" strokeWidth={1.75} style={{ marginBottom: 16 }} />
+        <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1A202C", marginBottom: 12 }}>
+          Exam submitted
+        </h2>
+        <p style={{ fontSize: 14, color: "#718096", maxWidth: 440, lineHeight: 1.6, marginBottom: 24 }}>
+          {autoSubmitReason} Your answers were saved and sent for grading.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate("/dashboard", { replace: true })}
+          style={{
+            padding: "12px 24px", borderRadius: 8, border: "none", background: "#4A90E2",
+            color: "#FFFFFF", fontSize: 14, fontWeight: 600, cursor: "pointer",
+          }}
+        >
+          Go to Dashboard
+        </button>
+      </div>
+    );
+  }
 
   if (isViolationSubmit) {
     return (
@@ -400,6 +434,12 @@ const TakeExam = () => {
   }
 
   const currentQuestion = questions[currentQuestionIdx];
+  const answeredCount = questions.filter(
+    (q) =>
+      localAnswers[q.id]?.optId ||
+      (localAnswers[q.id]?.text && localAnswers[q.id].text.trim()) ||
+      attachedQuestionIds[q.id]
+  ).length;
 
   return (
     <div style={{
@@ -655,6 +695,75 @@ const TakeExam = () => {
           </div>
         </div>
       </div>
+
+      {confirmSubmit && (
+        <div style={{
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex",
+          alignItems: "center", justifyContent: "center", zIndex: 10000,
+          fontFamily: "'Inter', sans-serif",
+        }}>
+          <div style={{
+            background: "#FFFFFF", borderRadius: 12, padding: 28, maxWidth: 420, width: "90%",
+            boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1)",
+          }}>
+            <h2 style={{ fontSize: 18, fontWeight: 700, color: "#1A202C", marginBottom: 10 }}>
+              Submit your exam?
+            </h2>
+            <p style={{ fontSize: 14, color: "#4A5568", lineHeight: 1.6, marginBottom: 8 }}>
+              You have answered {answeredCount} of {questions.length} questions.
+            </p>
+            <p style={{ fontSize: 13, color: "#718096", lineHeight: 1.6, marginBottom: 22 }}>
+              You cannot return to this exam once it is submitted.
+            </p>
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => setConfirmSubmit(false)}
+                disabled={submitMutation.isPending}
+                style={{
+                  padding: "10px 18px", borderRadius: 6, border: "1px solid #E2E8F0",
+                  background: "#FFFFFF", color: "#4A5568", fontSize: 14, fontWeight: 600,
+                  cursor: "pointer",
+                }}
+              >
+                Keep working
+              </button>
+              <button
+                type="button"
+                onClick={() => submitMutation.mutate({})}
+                disabled={submitMutation.isPending}
+                style={{
+                  padding: "10px 18px", borderRadius: 6, border: "none",
+                  background: "#38A169", color: "#FFFFFF", fontSize: 14, fontWeight: 700,
+                  cursor: submitMutation.isPending ? "wait" : "pointer",
+                }}
+              >
+                {submitMutation.isPending ? "Submitting…" : "Submit exam"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {submitError && (
+        <div style={{
+          position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+          zIndex: 10001, padding: "14px 18px", background: "#FFF5F5",
+          border: "1px solid #FED7D7", borderRadius: 8, color: "#C53030",
+          fontSize: 13, fontWeight: 500, boxShadow: "0 10px 15px -3px rgba(0,0,0,0.1)",
+          display: "flex", alignItems: "center", gap: 10, maxWidth: 480,
+        }}>
+          <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+          <span>{submitError}</span>
+          <button
+            type="button"
+            onClick={() => setSubmitError("")}
+            style={{ border: "none", background: "transparent", color: "#C53030", cursor: "pointer" }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
 
       {showSubmitModal && (
         <div style={{
