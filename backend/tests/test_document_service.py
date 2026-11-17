@@ -203,9 +203,23 @@ async def test_extraction_that_runs_too_long_times_out_instead_of_holding_a_thre
         extract_text("slow.txt", b"some plain text"), timeout=10
     )
     assert result.status == ExtractionStatus.failed
-    assert "too long" in (result.error or "").lower()
+    # The student is told the file could not be opened, not that a worker
+    # thread exceeded a timeout.
+    assert "timeout" not in (result.error or "").lower()
+    assert "could not be opened" in (result.error or "").lower()
 
 
 async def test_an_ordinary_docx_is_not_mistaken_for_a_bomb():
     result = await extract_text("essay.docx", read_fixture("sample.docx"))
     assert result.status == ExtractionStatus.ok
+
+
+async def test_an_empty_file_is_not_described_as_a_scan():
+    """The generic no-text copy talks about scans and photos. An empty file is
+    neither, and sending the student looking for an image that is not there
+    wastes their time."""
+    result = await extract_text("empty.txt", b"")
+
+    assert result.status == ExtractionStatus.no_text
+    assert "scan" not in (result.error or "").lower()
+    assert "empty" in (result.error or "").lower()

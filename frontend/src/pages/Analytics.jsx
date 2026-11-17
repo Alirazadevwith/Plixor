@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import api from "../api/api";
 import { TrendingUp, CheckCircle2, AlertTriangle, Users, FileText, FileSpreadsheet } from "lucide-react";
+import ErrorNotice from "../components/ErrorNotice";
+import friendlyError from "../lib/errors";
 
 const StatCard = ({ label, value, color, Icon }) => (
   <div style={{
@@ -28,6 +30,7 @@ const StatCard = ({ label, value, color, Icon }) => (
 const Analytics = () => {
   const { id: examId } = useParams();
   const [selectedStudentLogs, setSelectedStudentLogs] = useState(null);
+  const [exportError, setExportError] = useState("");
 
   const { data: summary, isLoading: summaryLoading } = useQuery({
     queryKey: ["exam-summary", examId],
@@ -58,7 +61,7 @@ const Analytics = () => {
       link.click();
       link.remove();
     } catch (err) {
-      alert("Failed to export results");
+      setExportError(friendlyError(err, "The results could not be exported."));
     }
   };
 
@@ -99,6 +102,12 @@ const Analytics = () => {
             <FileSpreadsheet size={15} /> Export Excel
           </button>
         </div>
+
+      {exportError && (
+        <div style={{ marginBottom: 20 }}>
+          <ErrorNotice message={exportError} onDismiss={() => setExportError("")} />
+        </div>
+      )}
       </div>
 
       {summaryLoading ? (

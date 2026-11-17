@@ -5,6 +5,7 @@ import bcrypt
 from fastapi import HTTPException, status
 
 from core.config import settings
+from core.messages import Messages
 
 def hash_password(password: str) -> str:
     salt = bcrypt.gensalt()
@@ -36,6 +37,6 @@ def decode_access_token(token: str) -> dict:
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Could not validate credentials",
+            detail=Messages.SESSION_EXPIRED,
             headers={"WWW-Authenticate": "Bearer"},
         )

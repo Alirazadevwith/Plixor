@@ -18,6 +18,8 @@ import enum
 import logging
 from typing import Optional
 
+from core.messages import Messages
+
 logger = logging.getLogger(__name__)
 
 # Values the shipped .env.example uses as placeholders. Treating them as real
@@ -126,6 +128,7 @@ def describe_configuration() -> str:
             override=settings.AI_PROVIDER,
         )
     except ValueError as exc:
+        # Startup log line, read by an operator -- not user-facing copy.
         return f"AI provider misconfigured: {exc}"
 
     if provider is None:
@@ -158,10 +161,10 @@ def get_chat_model(purpose: Purpose, **kwargs):
     )
 
     if provider is None:
-        raise NoProviderConfigured(
-            "No AI provider is configured. Set GEMINI_API_KEY or GROQ_API_KEY "
-            "in the backend environment."
+        logger.error(
+            "No AI provider configured: set GEMINI_API_KEY or GROQ_API_KEY."
         )
+        raise NoProviderConfigured(Messages.GRADING_NOT_CONFIGURED)
 
     model = model_for(provider, purpose)
 
@@ -184,37 +187,36 @@ def get_chat_model(purpose: Purpose, **kwargs):
 
 
 def explain_provider_error(exc: Exception, provider: Provider, purpose: Purpose) -> str:
-    """Turn a provider error into something the operator can act on.
+    """Plain-language copy for a provider failure.
 
-    Model ids are the most likely thing to go stale -- providers rename and
-    retire them, and the llama ids this project originally hardcoded return
-    404 on accounts that are not served them. A raw 404 leaves a teacher
-    staring at "AI Service Error"; naming the setting to change does not.
+    The raw text -- a 404 body, an auth error, a rate-limit payload -- is
+    logged with the setting an operator would need to change. What reaches the
+    teacher says what happened and who can fix it, because no amount of
+    provider JSON helps someone marking papers.
     """
     raw = str(exc)
     lowered = raw.lower()
 
     if "model_not_found" in lowered or "does not exist" in lowered:
-        setting = MODEL_SETTING[(provider, purpose)]
-        return (
-            f"The configured {purpose.value} model is not available on this "
-            f"{provider.value} account. Set {setting} in the backend environment "
-            f"to a model the account can use. Provider said: {raw}"
+        logger.error(
+            "Configured %s model for %s is unavailable (setting %s): %s",
+            provider.value, purpose.value, MODEL_SETTING[(provider, purpose)], raw,
         )
+        return Messages.GRADING_MODEL_UNAVAILABLE
 
     if "invalid api key" in lowered or "401" in raw or "unauthenticated" in lowered:
-        return (
-            f"The {provider.value} API key was rejected. Check {ENV_VAR[provider]} "
-            f"in the backend environment. Provider said: {raw}"
+        logger.error(
+            "%s rejected the API key (setting %s): %s",
+            provider.value, ENV_VAR[provider], raw,
         )
+        return Messages.GRADING_MODEL_UNAVAILABLE
 
     if "rate limit" in lowered or "429" in raw:
-        return (
-            f"The {provider.value} account is rate limited. Grading can be retried "
-            f"in a moment. Provider said: {raw}"
-        )
+        logger.warning("%s rate limited: %s", provider.value, raw)
+        return Messages.GRADING_BUSY
 
-    return raw
+    logger.error("%s grading call failed: %s", provider.value, raw)
+    return Messages.GRADING_UNAVAILABLE
 
 
 class NoProviderConfigured(RuntimeError):

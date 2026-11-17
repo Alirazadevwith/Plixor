@@ -260,8 +260,9 @@ class AIService:
                     # Recording a silent 0 would fail the whole class on this
                     # question with no trace anywhere.
                     review_notes.append(
-                        f"Question {question.order_index} has no rubric criteria, "
-                        f"so its {question.marks} marks could not be assessed."
+                        f"Question {question.order_index} has no marking criteria, "
+                        f"so its {question.marks:g} marks could not be awarded "
+                        f"automatically."
                     )
                 for item in result.get("criterion_scores", []):
                     score_record = CriterionScore(

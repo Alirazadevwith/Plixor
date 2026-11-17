@@ -11,16 +11,20 @@ Content-Type header -- both are attacker-controlled.
 
 import asyncio
 import io
+import logging
 import zipfile
 from dataclasses import dataclass
 from typing import Optional
 
 from core.config import settings
+from core.messages import Messages, upload_message, upload_too_large
 from models.enums import ExtractionStatus
 
 # Limits live in Settings so they are tunable per deployment without a code
 # change; see core/config.py for what each one guards against.
 MAX_UPLOAD_BYTES = settings.MAX_UPLOAD_BYTES
+
+logger = logging.getLogger(__name__)
 
 DOCX_DOCUMENT_ENTRY = "word/document.xml"
 
@@ -120,13 +124,16 @@ async def extract_text(filename: str, data: bytes) -> ExtractionResult:
     if len(data) > settings.MAX_UPLOAD_BYTES:
         return ExtractionResult(
             status=ExtractionStatus.too_large,
-            error=f"File is larger than {settings.MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+            error=upload_too_large(settings.MAX_UPLOAD_BYTES),
         )
 
     if not data:
+        # Distinct from "we could not read any text": an empty file is not a
+        # scan, and telling the student it might be one sends them looking for
+        # a problem that is not there.
         return ExtractionResult(
             status=ExtractionStatus.no_text,
-            error="The file is empty.",
+            error=Messages.UPLOAD_EMPTY,
             detected_type=TYPE_TEXT,
         )
 
@@ -134,7 +141,7 @@ async def extract_text(filename: str, data: bytes) -> ExtractionResult:
     if media_type not in ALLOWED_TYPES:
         return ExtractionResult(
             status=ExtractionStatus.unsupported,
-            error="Only PDF, Word (.docx) and plain text files can be read.",
+            error=upload_message(ExtractionStatus.unsupported.value),
             detected_type=media_type,
         )
 
@@ -149,16 +156,16 @@ async def extract_text(filename: str, data: bytes) -> ExtractionResult:
     except asyncio.TimeoutError:
         return ExtractionResult(
             status=ExtractionStatus.failed,
-            error=(
-                "Reading this file took too long. It may be unusually large or "
-                "complex -- try exporting a simpler version."
-            ),
+            error=upload_message(ExtractionStatus.failed.value),
             detected_type=media_type,
         )
-    except Exception as exc:
+    except Exception:
+        # The parser's own words ("PdfReadError: EOF marker not found") mean
+        # nothing to a student. Keep them in the log, where an operator looks.
+        logger.exception("Could not extract text from %s", filename)
         return ExtractionResult(
             status=ExtractionStatus.failed,
-            error=f"{type(exc).__name__}: {exc}",
+            error=upload_message(ExtractionStatus.failed.value),
             detected_type=media_type,
         )
 
@@ -168,11 +175,7 @@ async def extract_text(filename: str, data: bytes) -> ExtractionResult:
         # not reach grading as a silent blank.
         return ExtractionResult(
             status=ExtractionStatus.no_text,
-            error=(
-                "No text could be read from this file. If it is a scan or a "
-                "photo, the words are an image -- please upload a version with "
-                "selectable text."
-            ),
+            error=upload_message(ExtractionStatus.no_text.value),
             detected_type=media_type,
         )
 

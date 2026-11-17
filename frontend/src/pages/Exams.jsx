@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { useApp } from "../hooks/useApp";
 import api from "../api/api";
+import friendlyError from "../lib/errors";
 import ExamBuilder from "../components/ExamBuilder";
 import { Pencil, Rocket, BarChart3, TrendingUp, Trash2, X, Plus, AlertTriangle } from "lucide-react";
 
@@ -105,8 +106,7 @@ const Exams = () => {
     // to do nothing.
     onError: (err) =>
       setPublishError(
-        err.response?.data?.detail ||
-          "Could not publish this exam. Please try again."
+        friendlyError(err, "This exam could not be published.")
       ),
   });
 

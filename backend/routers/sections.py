@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from core.database import get_db
+from core.messages import Messages
 from core.dependencies import get_current_user, get_owned_section, require_teacher
 from core.security import hash_password
 from models.models import Section, Student, User
@@ -61,16 +62,16 @@ async def get_section(
     result = await db.execute(select(Section).where(Section.id == id))
     section = result.scalar_one_or_none()
     if not section:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Section not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=Messages.SECTION_NOT_FOUND)
 
     if current_user.role == UserRole.teacher and section.teacher_id != current_user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=Messages.NO_ACCESS)
     elif current_user.role == UserRole.student:
         student_result = await db.execute(
             select(Student).where(Student.user_id == current_user.id, Student.section_id == section.id)
         )
         if not student_result.scalar_one_or_none():
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=Messages.NO_ACCESS)
 
     return section
 
@@ -130,7 +131,7 @@ async def add_student_to_section(
     if email_check.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
+            detail=Messages.EMAIL_TAKEN,
         )
 
     user = User(
@@ -221,7 +222,7 @@ async def remove_student_from_section(
     if not student:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found in this section",
+            detail=Messages.STUDENT_NOT_IN_SECTION,
         )
 
     user_result = await db.execute(select(User).where(User.id == student.user_id))

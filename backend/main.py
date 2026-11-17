@@ -3,8 +3,13 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+import logging
+
 from core.config import settings
+from core.messages import Messages
 from core.database import engine
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -39,13 +44,16 @@ app.add_middleware(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    """Log the failure; tell the caller something they can act on.
+
+    The previous version returned str(exc) in development, which is how an
+    internal message ends up quoted in a bug report or a screenshot. The
+    traceback goes to the log either way, which is where it is useful.
+    """
+    logger.exception("Unhandled error on %s %s", request.method, request.url.path)
     return JSONResponse(
         status_code=500,
-        content={
-            "success": False,
-            "message": "Internal server error",
-            "detail": str(exc) if settings.ENVIRONMENT == "development" else "An unexpected error occurred",
-        },
+        content={"success": False, "detail": Messages.UNEXPECTED},
     )
 
 

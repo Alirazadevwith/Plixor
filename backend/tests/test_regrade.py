@@ -71,7 +71,9 @@ async def test_an_already_evaluated_submission_is_not_regraded(
         f"/api/submissions/{sub.id}/regrade", headers=auth_headers(sub.exam.teacher)
     )
     assert res.status_code == 400
-    assert "override" in res.json()["detail"].lower()
+    detail = res.json()["detail"].lower()
+    assert "already been graded" in detail
+    assert "change the score" in detail
 
 
 async def test_an_in_progress_submission_is_not_regraded(db, client, make_submission):

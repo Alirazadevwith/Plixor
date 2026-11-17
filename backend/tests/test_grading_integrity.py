@@ -87,7 +87,9 @@ async def test_grading_a_rubricless_subjective_question_flags_the_evaluation(
 
     ev = await db.scalar(select(Evaluation).where(Evaluation.submission_id == sub.id))
     assert ev.needs_review is True
-    assert "rubric" in (ev.review_reason or "").lower()
+    reason = (ev.review_reason or "").lower()
+    assert "marking criteria" in reason
+    assert "could not be awarded" in reason
 
 
 # --- a provider outage must be visible ---

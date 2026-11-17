@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from core.database import get_db
+from core.messages import Messages, upload_too_large
 from core.dependencies import (
     get_current_student,
     get_current_user,
@@ -61,7 +62,7 @@ async def _require_own_submission(submission: Submission, user: User, db: AsyncS
     result = await db.execute(select(Student).where(Student.user_id == user.id))
     student = result.scalar_one_or_none()
     if not student or submission.student_id != student.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=Messages.NO_ACCESS)
     return student
 
 
@@ -74,17 +75,17 @@ async def start_submission(
     exam_result = await db.execute(select(Exam).where(Exam.id == exam_id))
     exam = exam_result.scalar_one_or_none()
     if not exam:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Exam not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=Messages.EXAM_NOT_FOUND)
 
     if exam.section_id != student.section_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This exam is not assigned to your section",
+            detail=Messages.EXAM_WRONG_SECTION,
         )
 
     if exam.status != ExamStatus.active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="This exam is not active"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=Messages.EXAM_NOT_ACTIVE
         )
 
     now = datetime.now(timezone.utc)
@@ -96,7 +97,7 @@ async def start_submission(
         exam_end = exam_end.replace(tzinfo=timezone.utc)
     if now < exam_start or now > exam_end:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Exam session is closed"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=Messages.EXAM_WINDOW_CLOSED
         )
 
     sub_result = await db.execute(
@@ -109,7 +110,7 @@ async def start_submission(
     if existing_sub:
         if existing_sub.status != SubmissionStatus.in_progress:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Exam already submitted"
+                status_code=status.HTTP_400_BAD_REQUEST, detail=Messages.ALREADY_SUBMITTED
             )
         return SubmissionStartResponse(
             submission_id=existing_sub.id,
@@ -162,7 +163,7 @@ async def get_submission(
     )
     submission = result.scalar_one_or_none()
     if not submission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=Messages.SUBMISSION_NOT_FOUND)
 
     await _authorize_submission_read(submission, current_user, db)
 
@@ -179,11 +180,11 @@ async def save_answer(
     sub_result = await db.execute(select(Submission).where(Submission.id == id))
     submission = sub_result.scalar_one_or_none()
     if not submission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=Messages.SUBMISSION_NOT_FOUND)
 
     if submission.status != SubmissionStatus.in_progress:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Submission is not in progress"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=Messages.NOT_IN_PROGRESS
         )
 
     await _require_own_submission(submission, current_user, db)
@@ -223,11 +224,11 @@ async def submit_exam(
     sub_result = await db.execute(select(Submission).where(Submission.id == id))
     submission = sub_result.scalar_one_or_none()
     if not submission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=Messages.SUBMISSION_NOT_FOUND)
 
     if submission.status != SubmissionStatus.in_progress:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Submission is not in progress"
+            status_code=status.HTTP_400_BAD_REQUEST, detail=Messages.NOT_IN_PROGRESS
         )
 
     await _require_own_submission(submission, current_user, db)
@@ -255,7 +256,7 @@ async def get_evaluation(
     sub_result = await db.execute(select(Submission).where(Submission.id == id))
     submission = sub_result.scalar_one_or_none()
     if not submission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=Messages.SUBMISSION_NOT_FOUND)
 
     await _authorize_submission_read(submission, current_user, db)
 
@@ -268,7 +269,7 @@ async def get_evaluation(
     evaluation = eval_result.scalars().first()
     if not evaluation:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Evaluation not found for this submission"
+            status_code=status.HTTP_404_NOT_FOUND, detail=Messages.NO_RESULT_YET
         )
 
     return evaluation
@@ -284,13 +285,13 @@ async def override_evaluation(
     sub_result = await db.execute(select(Submission).where(Submission.id == id))
     submission = sub_result.scalar_one_or_none()
     if not submission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=Messages.SUBMISSION_NOT_FOUND)
 
     exam_result = await db.execute(select(Exam).where(Exam.id == submission.exam_id))
     exam = exam_result.scalar_one_or_none()
     if not exam or (current_user.role != UserRole.admin and exam.teacher_id != current_user.id):
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN, detail="Access denied to override evaluation"
+            status_code=status.HTTP_403_FORBIDDEN, detail=Messages.NO_ACCESS_EXAM
         )
 
     eval_result = await db.execute(
@@ -302,7 +303,7 @@ async def override_evaluation(
     evaluation = eval_result.scalars().first()
     if not evaluation:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="No evaluation found to override"
+            status_code=status.HTTP_404_NOT_FOUND, detail=Messages.NO_RESULT_YET
         )
 
     evaluation.total_score = req.total_score
@@ -329,7 +330,7 @@ async def get_exam_submissions(
     exam_result = await db.execute(select(Exam).where(Exam.id == exam_id))
     exam = exam_result.scalar_one_or_none()
     if not exam or (current_user.role != UserRole.admin and exam.teacher_id != current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=Messages.NO_ACCESS)
 
     subs_result = await db.execute(
         select(Submission)
@@ -368,7 +369,7 @@ async def log_cheating_event(
     sub_result = await db.execute(select(Submission).where(Submission.id == id))
     submission = sub_result.scalar_one_or_none()
     if not submission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=Messages.SUBMISSION_NOT_FOUND)
 
     await _require_own_submission(submission, current_user, db)
 
@@ -412,7 +413,7 @@ async def get_suspicious_logs(
     exam_result = await db.execute(select(Exam).where(Exam.id == exam_id))
     exam = exam_result.scalar_one_or_none()
     if not exam or (current_user.role != UserRole.admin and exam.teacher_id != current_user.id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=Messages.NO_ACCESS)
 
     logs_result = await db.execute(
         select(CheatingLog)
@@ -471,7 +472,7 @@ async def _load_answer_for_attachment(
     sub_result = await db.execute(select(Submission).where(Submission.id == submission_id))
     submission = sub_result.scalar_one_or_none()
     if not submission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=Messages.SUBMISSION_NOT_FOUND)
 
     q_result = await db.execute(
         select(Question).where(
@@ -482,7 +483,7 @@ async def _load_answer_for_attachment(
     if not question:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Question not found on this exam",
+            detail=Messages.QUESTION_NOT_FOUND,
         )
 
     return submission, question
@@ -507,7 +508,7 @@ async def _authorize_submission_read(
     exam_result = await db.execute(select(Exam).where(Exam.id == submission.exam_id))
     exam = exam_result.scalar_one_or_none()
     if not exam or exam.teacher_id != user.id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=Messages.NO_ACCESS)
 
 
 def _attachment_response(attachment: AnswerAttachment) -> AttachmentResponse:
@@ -540,14 +541,14 @@ async def upload_attachment(
     if submission.status != SubmissionStatus.in_progress:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This exam has already been submitted",
+            detail=Messages.ALREADY_SUBMITTED,
         )
 
     data = await _read_within_limit(file, settings.MAX_UPLOAD_BYTES)
     if data is None:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File is larger than {settings.MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
+            detail=upload_too_large(settings.MAX_UPLOAD_BYTES),
         )
 
     result = await extract_text(file.filename or "upload", data)
@@ -612,7 +613,7 @@ async def download_attachment(
     )
     attachment = result.scalar_one_or_none()
     if not attachment:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No attachment found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=Messages.NO_ATTACHMENT)
 
     content = await db.scalar(
         select(AnswerAttachment.content).where(AnswerAttachment.id == attachment.id)
@@ -639,7 +640,7 @@ async def delete_attachment(
     if submission.status != SubmissionStatus.in_progress:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This exam has already been submitted",
+            detail=Messages.ALREADY_SUBMITTED,
         )
 
     result = await db.execute(
@@ -652,7 +653,7 @@ async def delete_attachment(
     )
     attachment = result.scalar_one_or_none()
     if not attachment:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No attachment found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=Messages.NO_ATTACHMENT)
 
     await db.delete(attachment)
     await db.flush()
@@ -678,22 +679,19 @@ async def regrade_submission(
     sub_result = await db.execute(select(Submission).where(Submission.id == id))
     submission = sub_result.scalar_one_or_none()
     if not submission:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=Messages.SUBMISSION_NOT_FOUND)
 
     await _authorize_submission_read(submission, current_user, db)
 
     if submission.status == SubmissionStatus.evaluated:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                "This submission has already been graded. Use override to change "
-                "the score rather than re-grading."
-            ),
+            detail=Messages.ALREADY_GRADED,
         )
     if submission.status == SubmissionStatus.in_progress:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This exam has not been submitted yet.",
+            detail=Messages.NOT_SUBMITTED_YET,
         )
 
     # A partial Evaluation left by an interrupted run would hit the uniqueness

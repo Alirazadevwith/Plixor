@@ -35,5 +35,7 @@ async def test_auth_headers_authenticate_against_the_api(client, make_teacher):
 
 
 async def test_request_without_token_is_rejected(client):
+    """401, not 403: the caller is not authenticated, rather than
+    authenticated and forbidden."""
     res = await client.get("/api/auth/me")
-    assert res.status_code == 403
+    assert res.status_code == 401

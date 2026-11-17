@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApp } from "../hooks/useApp";
 import api from "../api/api";
 import SubmissionStatusBadge from "../components/SubmissionStatusBadge";
+import ErrorNotice from "../components/ErrorNotice";
+import friendlyError from "../lib/errors";
 import {
   ChevronLeft, Check, X, AlertCircle, Award, BookOpen, MessageSquare, FileText, Info, AlertTriangle, ArrowRight, Clock, RefreshCw, User as UserIcon
 } from "lucide-react";
@@ -42,14 +44,9 @@ const Spinner = () => (
   </div>
 );
 
-const ErrorMessage = ({ message }) => (
-  <div style={{
-    padding: "16px 20px", background: "#FFF5F5", border: "1px solid #FED7D7",
-    color: "#E53E3E", borderRadius: 8, margin: "20px 0", fontSize: 14, fontWeight: 500,
-    display: "flex", alignItems: "center", gap: 10
-  }}>
-    <AlertCircle size={18} />
-    <span>{message || "Failed to load data. Please check your connection and try again."}</span>
+const ErrorMessage = ({ message, onRetry }) => (
+  <div style={{ margin: "20px 0" }}>
+    <ErrorNotice message={message || "This could not be loaded right now."} onRetry={onRetry} />
   </div>
 );
 
@@ -272,7 +269,7 @@ const Results = () => {
       setOverrideError("");
     },
     onError: (err) => {
-      setOverrideError(err.response?.data?.detail || "Failed to submit score override");
+      setOverrideError(friendlyError(err, "The score could not be changed. Please try again."));
     },
   });
 
@@ -410,7 +407,7 @@ const Results = () => {
                   </button>
                   {regradeMutation.isError && (
                     <span style={{ marginLeft: 10, fontSize: 12 }}>
-                      {regradeMutation.error?.response?.data?.detail || "Retry failed."}
+                      {friendlyError(regradeMutation.error, "Grading could not be restarted.")}
                     </span>
                   )}
                 </div>
@@ -437,7 +434,7 @@ const Results = () => {
         {(submissionObjLoading || evaluationLoading || questionsLoading) ? (
           <Spinner />
         ) : (evaluationError || questionsError) ? (
-          <ErrorMessage message="Failed to load evaluation feedback. Please verify backend is running." />
+          <ErrorMessage message="The feedback for this submission could not be loaded." />
         ) : isPending ? (
           /* Awaiting Evaluation Template */
           <div style={{
@@ -1021,7 +1018,7 @@ const Results = () => {
         {mySubmissionsLoading ? (
           <Spinner />
         ) : mySubmissionsError ? (
-          <ErrorMessage message="Failed to load your submissions." />
+          <ErrorMessage message="Your results could not be loaded right now." />
         ) : mySubmissions.length > 0 ? (
           <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", overflow: "hidden" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -1139,7 +1136,7 @@ const Results = () => {
         {examSubmissionsLoading ? (
           <Spinner />
         ) : examSubmissionsError ? (
-          <ErrorMessage message="Failed to load section submissions." />
+          <ErrorMessage message="Submissions for this exam could not be loaded." />
         ) : examSubmissions.length > 0 ? (
           <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", overflow: "hidden" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -1233,7 +1230,7 @@ const Results = () => {
         {overviewLoading ? (
           <Spinner />
         ) : overviewError ? (
-          <ErrorMessage message="Failed to load performance analytics dashboard." />
+          <ErrorMessage message="Class performance could not be loaded right now." />
         ) : examStats.length > 0 ? (
           <div style={{ background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 12, boxShadow: "0 4px 6px -1px rgba(0,0,0,0.05)", overflow: "hidden" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>

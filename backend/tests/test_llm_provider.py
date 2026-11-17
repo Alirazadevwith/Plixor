@@ -117,11 +117,13 @@ def test_no_model_is_a_speech_or_safety_model():
             assert "prompt-guard" not in model
 
 
-# --- a wrong model id must say which setting to change ---
+# --- a provider failure must read plainly, with the detail in the log ---
 
-def test_model_not_found_names_the_setting_to_change():
-    """The llama ids the original code hardcoded 404 on some Groq accounts.
-    A raw provider error leaves the teacher with nothing to act on."""
+def test_model_not_found_is_explained_without_naming_internals(caplog):
+    """The teacher is told grading is unavailable and who can fix it. The
+    model id and the setting to change go to the log, for the operator."""
+    import logging
+
     from services.llm_provider import explain_provider_error
 
     raw = Exception(
@@ -129,23 +131,56 @@ def test_model_not_found_names_the_setting_to_change():
         "`llama-3.3-70b-versatile` does not exist or you do not have access "
         "to it.', 'code': 'model_not_found'}}"
     )
-    message = explain_provider_error(raw, Provider.groq, Purpose.grading)
+    with caplog.at_level(logging.ERROR):
+        message = explain_provider_error(raw, Provider.groq, Purpose.grading)
 
-    assert "GROQ_GRADING_MODEL" in message
-    assert "llama-3.3-70b-versatile" in message
+    assert "GROQ_GRADING_MODEL" not in message
+    assert "404" not in message
+    assert "llama" not in message.lower()
+    assert "administrator" in message.lower()
+
+    logged = caplog.text
+    assert "GROQ_GRADING_MODEL" in logged, "operator loses the setting to change"
+    assert "llama-3.3-70b-versatile" in logged
 
 
-def test_auth_error_names_the_api_key_setting():
+def test_auth_failure_is_explained_without_naming_the_key(caplog):
+    import logging
+
     from services.llm_provider import explain_provider_error
 
     raw = Exception("Error code: 401 - {'error': {'message': 'Invalid API Key'}}")
-    message = explain_provider_error(raw, Provider.gemini, Purpose.generation)
+    with caplog.at_level(logging.ERROR):
+        message = explain_provider_error(raw, Provider.gemini, Purpose.generation)
 
-    assert "GEMINI_API_KEY" in message
+    assert "GEMINI_API_KEY" not in message
+    assert "401" not in message
+    assert "GEMINI_API_KEY" in caplog.text
 
 
-def test_an_unrecognised_error_is_passed_through():
+def test_rate_limiting_tells_the_user_to_wait():
     from services.llm_provider import explain_provider_error
 
-    message = explain_provider_error(Exception("connection reset"), Provider.groq, Purpose.grading)
-    assert "connection reset" in message
+    raw = Exception("Error code: 429 - rate limit exceeded")
+    message = explain_provider_error(raw, Provider.groq, Purpose.grading)
+
+    assert "429" not in message
+    assert "try again" in message.lower()
+
+
+def test_an_unrecognised_error_does_not_leak_its_text(caplog):
+    """Whatever the provider said, the user gets the general message."""
+    import logging
+
+    from services.llm_provider import explain_provider_error
+
+    with caplog.at_level(logging.ERROR):
+        message = explain_provider_error(
+            Exception("connection reset by peer at 10.0.0.4:443"),
+            Provider.groq,
+            Purpose.grading,
+        )
+
+    assert "connection reset" not in message
+    assert "10.0.0.4" not in message
+    assert "connection reset" in caplog.text

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import api from "../api/api";
+import friendlyError from "../lib/errors";
 import AnswerAttachment from "../components/AnswerAttachment";
 import { AlertTriangle, ShieldCheck, CheckCircle2, PartyPopper, X } from "lucide-react";
 
@@ -122,7 +123,7 @@ const TakeExam = () => {
     onError: (error) => {
       setConfirmSubmit(false);
       setSubmitError(
-        error.response?.data?.detail || "Failed to submit exam. Please try again."
+        friendlyError(error, "Your exam could not be handed in. Please try again.")
       );
     },
   });

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 from core.database import get_db
+from core.messages import Messages
 from core.dependencies import (
     get_accessible_exam,
     get_current_student,
@@ -51,7 +52,7 @@ async def validate_exam_is_publishable(exam: Exam, db: AsyncSession) -> None:
     if not questions:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="This exam has no questions yet.",
+            detail=Messages.EXAM_HAS_NO_QUESTIONS,
         )
 
     problems = []
@@ -356,7 +357,7 @@ async def update_question(
     q_result = await db.execute(select(Question).where(Question.id == qid, Question.exam_id == exam.id))
     question = q_result.scalar_one_or_none()
     if not question:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=Messages.QUESTION_NOT_FOUND)
 
     question.question_type = q_in.question_type
     question.question_text = q_in.question_text
@@ -418,7 +419,7 @@ async def delete_question(
     q_result = await db.execute(select(Question).where(Question.id == qid, Question.exam_id == exam.id))
     question = q_result.scalar_one_or_none()
     if not question:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=Messages.QUESTION_NOT_FOUND)
 
     await db.delete(question)
     await db.flush()
@@ -434,12 +435,12 @@ async def generate_rubric_ai(
     q_result = await db.execute(select(Question).where(Question.id == qid, Question.exam_id == exam.id))
     question = q_result.scalar_one_or_none()
     if not question:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Question not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=Messages.QUESTION_NOT_FOUND)
 
     if question.question_type != QuestionType.subjective or not question.model_answer:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Rubrics can only be generated for subjective questions with a model answer",
+            detail=Messages.RUBRIC_NEEDS_MODEL_ANSWER,
         )
 
     rubrics = await ai_service.generate_rubric(

@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../api/api";
+import friendlyError from "../lib/errors";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 const ACCEPT = ".pdf,.docx,.txt,.md";
@@ -76,7 +77,7 @@ const AnswerAttachment = ({ submissionId, questionId, disabled = false, onAttach
     },
     onError: (err) => {
       setLocalError(
-        err.response?.data?.detail || "Upload failed. Check your connection and try again."
+        friendlyError(err, "This file could not be uploaded.")
       );
     },
   });
@@ -92,7 +93,7 @@ const AnswerAttachment = ({ submissionId, questionId, disabled = false, onAttach
       if (fileInputRef.current) fileInputRef.current.value = "";
     },
     onError: (err) => {
-      setLocalError(err.response?.data?.detail || "Could not remove the file.");
+      setLocalError(friendlyError(err, "This file could not be removed."));
     },
   });
 

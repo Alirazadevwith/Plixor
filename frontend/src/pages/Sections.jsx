@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../api/api";
 import { Building2, Calendar, X, FolderOpen, Trash2 } from "lucide-react";
+import ErrorNotice from "../components/ErrorNotice";
+import friendlyError from "../lib/errors";
 
 const inputStyle = {
   width: "100%",
@@ -28,6 +30,7 @@ const labelStyle = {
 const Sections = () => {
   const queryClient = useQueryClient();
   const [showStudentsModal, setShowStudentsModal] = useState(null);
+  const [studentError, setStudentError] = useState("");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editSection, setEditSection] = useState(null);
   const [newSection, setNewSection] = useState({ name: "", department: "", semester: "" });
@@ -99,7 +102,7 @@ const Sections = () => {
       setShowAddStudent(false);
     },
     onError: (error) => {
-      alert(error.response?.data?.detail || "Failed to add student.");
+      setStudentError(friendlyError(error, "This student could not be added."));
     },
   });
 
@@ -447,6 +450,15 @@ const Sections = () => {
             {showAddStudent && (
               <div style={{ padding: "16px 28px", borderBottom: "1px solid #E2E8F0", background: "#F7F8FC" }}>
                 <form onSubmit={handleAddStudent} style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
+                {studentError && (
+                  <div style={{ marginBottom: 14 }}>
+                    <ErrorNotice
+                      message={studentError}
+                      compact
+                      onDismiss={() => setStudentError("")}
+                    />
+                  </div>
+                )}
                   <div style={{ flex: "1 1 140px" }}>
                     <label style={{ ...labelStyle, fontSize: 10 }}>Full Name</label>
                     <input type="text" value={newStudent.fullName} onChange={(e) => setNewStudent({ ...newStudent, fullName: e.target.value })} style={{ ...inputStyle, padding: "6px 10px", fontSize: 13 }} required />

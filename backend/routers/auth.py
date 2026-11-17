@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from core.database import get_db
+from core.messages import Messages
 from core.security import hash_password, verify_password, create_access_token
 from core.dependencies import get_current_user
 from models.models import User
@@ -17,7 +18,7 @@ async def register(user_in: UserRegister, db: AsyncSession = Depends(get_db)):
     if existing_user:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
+            detail=Messages.EMAIL_TAKEN,
         )
 
     new_user = User(
@@ -38,13 +39,13 @@ async def login(credentials: UserLogin, db: AsyncSession = Depends(get_db)):
     if not user or not verify_password(credentials.password, user.password_hash):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password",
+            detail=Messages.INVALID_CREDENTIALS,
         )
 
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive",
+            detail=Messages.ACCOUNT_INACTIVE,
         )
 
     access_token = create_access_token(data={"sub": str(user.id)})
@@ -72,7 +73,7 @@ async def update_me(
         if existing_user:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already in use",
+                detail=Messages.EMAIL_TAKEN,
             )
         current_user.email = user_in.email
 

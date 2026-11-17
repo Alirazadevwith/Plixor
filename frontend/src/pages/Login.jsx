@@ -1,4 +1,5 @@
 import { useState } from "react";
+import friendlyError from "../lib/errors";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -45,7 +46,7 @@ const Login = () => {
         navigate("/dashboard");
       }
     } catch (err) {
-      setApiError(err.response?.data?.detail || "Authentication failed");
+      setApiError(friendlyError(err, "We could not sign you in. Please try again."));
     }
   };
 
