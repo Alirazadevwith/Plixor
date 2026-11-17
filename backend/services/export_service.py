@@ -6,6 +6,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from models.models import Exam, Student, User, Submission
 
+# Leading characters a spreadsheet treats as the start of a formula. A student
+# whose name begins with one of these became live code in the teacher's Excel.
+FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def neutralise(value) -> str:
+    """Render a cell so a spreadsheet shows it rather than evaluating it.
+
+    Prefixing with an apostrophe is the conventional fix: Excel and LibreOffice
+    both treat it as "this is text" and do not display it.
+    """
+    text = "" if value is None else str(value)
+    if text.startswith(FORMULA_TRIGGERS):
+        return "'" + text
+    return text
+
+
 COLUMNS = [
     "Roll Number",
     "Full Name",
@@ -79,7 +96,7 @@ class ExportService:
         writer = csv.writer(output)
         writer.writerow(COLUMNS)
         for row in data:
-            writer.writerow([row[column] for column in COLUMNS])
+            writer.writerow([neutralise(row[column]) for column in COLUMNS])
 
         return io.BytesIO(output.getvalue().encode("utf-8"))
 
@@ -91,7 +108,7 @@ class ExportService:
         sheet.title = "Results"
         sheet.append(COLUMNS)
         for row in data:
-            sheet.append([row[column] for column in COLUMNS])
+            sheet.append([neutralise(row[column]) for column in COLUMNS])
 
         output = io.BytesIO()
         workbook.save(output)

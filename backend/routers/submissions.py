@@ -4,7 +4,7 @@ import unicodedata
 import uuid
 from datetime import datetime, timezone
 from urllib.parse import quote
-from typing import List
+from typing import List, Optional
 from fastapi import (
     APIRouter,
     BackgroundTasks,
@@ -50,7 +50,8 @@ from schemas.schemas import (
     OverrideRequest,
 )
 from services.ai_service import ai_service
-from services.document_service import MAX_UPLOAD_BYTES, extract_text
+from core.config import settings
+from services.document_service import extract_text
 
 router = APIRouter()
 
@@ -163,8 +164,7 @@ async def get_submission(
     if not submission:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
 
-    if current_user.role == UserRole.student:
-        await _require_own_submission(submission, current_user, db)
+    await _authorize_submission_read(submission, current_user, db)
 
     return submission
 
@@ -257,8 +257,7 @@ async def get_evaluation(
     if not submission:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")
 
-    if current_user.role == UserRole.student:
-        await _require_own_submission(submission, current_user, db)
+    await _authorize_submission_read(submission, current_user, db)
 
     eval_result = await db.execute(
         select(Evaluation)
@@ -424,6 +423,26 @@ async def get_suspicious_logs(
     return list(logs_result.scalars().all())
 
 
+async def _read_within_limit(upload: UploadFile, limit: int) -> Optional[bytes]:
+    """Read at most `limit` bytes; return None if the body is larger.
+
+    A plain `await upload.read()` materialised the entire body before the size
+    was checked, so a 2 GB post earned a correct 413 only after the server had
+    allocated 2 GB. Reading in chunks bounds the memory by the limit itself.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = await upload.read(1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if total > limit:
+            return None
+        chunks.append(chunk)
+    return b"".join(chunks)
+
+
 def _content_disposition(filename: str) -> str:
     """An attachment Content-Disposition that survives any filename.
 
@@ -469,10 +488,15 @@ async def _load_answer_for_attachment(
     return submission, question
 
 
-async def _authorize_attachment_read(
+async def _authorize_submission_read(
     submission: Submission, user: User, db: AsyncSession
 ) -> None:
-    """The owning student, the exam's teacher, or an admin."""
+    """The owning student, the exam's own teacher, or an admin.
+
+    get_submission and get_evaluation previously checked ownership only for
+    students, so any authenticated teacher could read any submission by id --
+    diverging from the rule enforced on that same row's attachment.
+    """
     if user.role == UserRole.admin:
         return
 
@@ -519,11 +543,11 @@ async def upload_attachment(
             detail="This exam has already been submitted",
         )
 
-    data = await file.read()
-    if len(data) > MAX_UPLOAD_BYTES:
+    data = await _read_within_limit(file, settings.MAX_UPLOAD_BYTES)
+    if data is None:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-            detail=f"File is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
+            detail=f"File is larger than {settings.MAX_UPLOAD_BYTES // (1024 * 1024)} MB",
         )
 
     result = await extract_text(file.filename or "upload", data)
@@ -576,7 +600,7 @@ async def download_attachment(
     db: AsyncSession = Depends(get_db),
 ):
     submission, _ = await _load_answer_for_attachment(id, question_id, db)
-    await _authorize_attachment_read(submission, current_user, db)
+    await _authorize_submission_read(submission, current_user, db)
 
     result = await db.execute(
         select(AnswerAttachment)
