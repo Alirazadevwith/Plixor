@@ -242,3 +242,56 @@ async def test_submission_detail_has_null_attachment_when_none_uploaded(
     )
     answer = next(a for a in res.json()["answers"] if a["question_id"] == str(question.id))
     assert answer["attachment"] is None
+
+
+# --- Critical: a non-Latin-1 filename must not break the download forever ---
+
+NON_ASCII_NAMES = [
+    "答案.pdf",            # CJK
+    "résumé.pdf",          # accented Latin
+    "задание.pdf",         # Cyrillic
+    "مقالہ.pdf",           # Urdu/Arabic
+    'my"quoted".pdf',      # breaks the quoted-string form
+    "semi;colon.pdf",      # breaks header parsing
+]
+
+
+@pytest.mark.parametrize("filename", NON_ASCII_NAMES)
+async def test_attachment_with_an_awkward_filename_can_still_be_downloaded(
+    client, submission_with_question, filename
+):
+    """Starlette encodes response headers as latin-1, so an unescaped CJK or
+    accented filename raised UnicodeEncodeError and returned 500 -- forever.
+    The teacher could never open that student's work."""
+    sub, question = await submission_with_question()
+    headers = auth_headers(sub.student.user)
+
+    upload = await client.post(
+        url(sub.id, question.id),
+        files={"file": (filename, read_fixture("sample.pdf"), "application/pdf")},
+        headers=headers,
+    )
+    assert upload.status_code == 201
+
+    res = await client.get(url(sub.id, question.id), headers=headers)
+    assert res.status_code == 200, f"download failed for {filename!r}"
+    assert res.content == read_fixture("sample.pdf")
+
+
+async def test_content_disposition_carries_the_original_name_utf8_encoded(
+    client, submission_with_question
+):
+    sub, question = await submission_with_question()
+    headers = auth_headers(sub.student.user)
+    await client.post(
+        url(sub.id, question.id),
+        files={"file": ("答案.pdf", read_fixture("sample.pdf"), "application/pdf")},
+        headers=headers,
+    )
+
+    res = await client.get(url(sub.id, question.id), headers=headers)
+    disposition = res.headers["content-disposition"]
+
+    # RFC 5987: an ASCII fallback for old clients plus the real name.
+    assert "filename*=UTF-8''" in disposition
+    assert "%E7%AD%94%E6%A1%88" in disposition  # 答案 percent-encoded

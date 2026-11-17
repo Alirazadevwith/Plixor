@@ -1,7 +1,10 @@
 from pathlib import Path
 
 from models.enums import ExtractionStatus
-from services.document_service import MAX_EXTRACTED_CHARS, MAX_UPLOAD_BYTES, extract_text
+from core.config import settings
+from services.document_service import MAX_UPLOAD_BYTES, extract_text
+
+MAX_EXTRACTED_CHARS = settings.MAX_EXTRACTED_CHARS
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -134,6 +137,73 @@ async def test_docx_decompression_bomb_is_rejected_before_parsing():
 
     assert result.status == ExtractionStatus.unsupported
     assert result.error
+
+
+async def test_docx_just_under_the_old_cap_is_still_rejected():
+    """The measured attack: 73 MB of declared XML passed an 80 MB cap, and lxml
+    then expanded it ~18x into a 1.5 GB parse tree. The cap has to bound the
+    XML a parser will actually build a tree from, not a number chosen to look
+    generous."""
+    data = _make_docx_bomb(73_000_000)
+    assert len(data) < MAX_UPLOAD_BYTES
+
+    result = await extract_text("just_under.docx", data)
+
+    assert result.status == ExtractionStatus.unsupported
+
+
+async def test_the_cap_applies_to_document_xml_not_the_sum_of_entries():
+    """A legitimate .docx with large images must not be charged for them.
+
+    The dangerous entry is word/document.xml, which is what gets parsed into a
+    tree. Summing every entry would reject a real essay that embeds a photo
+    while still admitting a pure-XML bomb under a cap set loose enough to
+    allow those photos.
+    """
+    import io
+    import zipfile
+
+    source = zipfile.ZipFile(io.BytesIO(read_fixture("sample.docx")))
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=1) as out:
+        for item in source.infolist():
+            out.writestr(item, source.read(item.filename))
+        # 20 MB of "image" -- on its own larger than MAX_DOCX_XML_BYTES.
+        out.writestr("word/media/image1.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 20_000_000)
+
+    data = buf.getvalue()
+    assert len(data) < settings.MAX_UPLOAD_BYTES, "must still pass the wire-size gate"
+
+    result = await extract_text("with_images.docx", data)
+
+    assert result.status == ExtractionStatus.ok
+    assert "photosynthesis" in result.text.lower()
+
+
+async def test_extraction_that_runs_too_long_times_out_instead_of_holding_a_thread(
+    monkeypatch,
+):
+    """One upload must not be able to occupy a threadpool slot for minutes."""
+    import asyncio
+
+    import services.document_service as svc
+
+    monkeypatch.setattr(svc.settings, "EXTRACTION_TIMEOUT_SECONDS", 1)
+
+    def slow(*args, **kwargs):
+        import time
+
+        time.sleep(5)
+        return "never returned"
+
+    monkeypatch.setattr(svc, "_extract_sync", slow)
+
+    result = await asyncio.wait_for(
+        extract_text("slow.txt", b"some plain text"), timeout=10
+    )
+    assert result.status == ExtractionStatus.failed
+    assert "too long" in (result.error or "").lower()
 
 
 async def test_an_ordinary_docx_is_not_mistaken_for_a_bomb():

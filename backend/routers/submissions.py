@@ -1,6 +1,9 @@
 import io
+import re
+import unicodedata
 import uuid
 from datetime import datetime, timezone
+from urllib.parse import quote
 from typing import List
 from fastapi import (
     APIRouter,
@@ -421,6 +424,21 @@ async def get_suspicious_logs(
     return list(logs_result.scalars().all())
 
 
+def _content_disposition(filename: str) -> str:
+    """An attachment Content-Disposition that survives any filename.
+
+    Starlette encodes response headers as latin-1, so a raw CJK, Cyrillic or
+    accented filename raised UnicodeEncodeError and the download returned 500
+    permanently -- the teacher could never open that student's work. RFC 5987
+    gives an ASCII fallback for old clients plus the real UTF-8 name, and the
+    fallback is stripped of quotes and semicolons so it cannot break parsing.
+    """
+    ascii_name = unicodedata.normalize("NFKD", filename).encode("ascii", "ignore").decode()
+    ascii_name = re.sub(r'[\\"\s;]+', "_", ascii_name).strip("_") or "attachment"
+    quoted = quote(filename, safe="")
+    return f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{quoted}"
+
+
 async def _load_answer_for_attachment(
     submission_id: uuid.UUID,
     question_id: uuid.UUID,
@@ -578,7 +596,7 @@ async def download_attachment(
     return StreamingResponse(
         io.BytesIO(content),
         media_type=attachment.content_type,
-        headers={"Content-Disposition": f'attachment; filename="{attachment.filename}"'},
+        headers={"Content-Disposition": _content_disposition(attachment.filename)},
     )
 
 

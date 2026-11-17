@@ -15,17 +15,14 @@ import zipfile
 from dataclasses import dataclass
 from typing import Optional
 
+from core.config import settings
 from models.enums import ExtractionStatus
 
-MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-MAX_PDF_PAGES = 50
-MAX_EXTRACTED_CHARS = 50_000
+# Limits live in Settings so they are tunable per deployment without a code
+# change; see core/config.py for what each one guards against.
+MAX_UPLOAD_BYTES = settings.MAX_UPLOAD_BYTES
 
-# MAX_UPLOAD_BYTES bounds only the *compressed* size of a .docx. A zip that
-# expands a thousandfold turns a 0.2 MB upload into a 200 MB allocation, so the
-# uncompressed size is bounded too. 80 MB is far above any real essay and far
-# below what would threaten the worker.
-MAX_DOCX_UNCOMPRESSED_BYTES = 80 * 1024 * 1024
+DOCX_DOCUMENT_ENTRY = "word/document.xml"
 
 PDF_MAGIC = b"%PDF-"
 ZIP_MAGIC = b"PK\x03\x04"
@@ -54,16 +51,20 @@ def _detect_type(data: bytes) -> Optional[str]:
         # A .docx is a zip; a zip is not necessarily a .docx.
         try:
             with zipfile.ZipFile(io.BytesIO(data)) as zf:
-                if "word/document.xml" not in zf.namelist():
+                names = zf.namelist()
+                if DOCX_DOCUMENT_ENTRY not in names:
                     return None
-                # Read the declared sizes from the central directory -- this
-                # decompresses nothing -- and refuse a bomb before any parser
-                # allocates for it.
-                declared = sum(info.file_size for info in zf.infolist())
-                if declared > MAX_DOCX_UNCOMPRESSED_BYTES:
+
+                # Bound the one entry a parser builds a tree from, read from
+                # the central directory so nothing is decompressed. Charging
+                # the sum of all entries would reject a legitimate essay that
+                # embeds images, while still letting a pure-XML bomb through
+                # under a cap set generously enough to cover those images.
+                declared = zf.getinfo(DOCX_DOCUMENT_ENTRY).file_size
+                if declared > settings.MAX_DOCX_XML_BYTES:
                     return None
                 return TYPE_DOCX
-        except zipfile.BadZipFile:
+        except (zipfile.BadZipFile, KeyError):
             return None
 
     try:
@@ -87,7 +88,7 @@ def _extract_pdf(data: bytes) -> str:
     from pypdf import PdfReader
 
     reader = PdfReader(io.BytesIO(data))
-    pages = reader.pages[:MAX_PDF_PAGES]
+    pages = reader.pages[: settings.MAX_PDF_PAGES]
     return "\n".join(page.extract_text() or "" for page in pages)
 
 
@@ -116,10 +117,10 @@ async def extract_text(filename: str, data: bytes) -> ExtractionResult:
     Never raises: a document we cannot read is a result the student has to see,
     not an exception that loses their upload.
     """
-    if len(data) > MAX_UPLOAD_BYTES:
+    if len(data) > settings.MAX_UPLOAD_BYTES:
         return ExtractionResult(
             status=ExtractionStatus.too_large,
-            error=f"File is larger than {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
+            error=f"File is larger than {settings.MAX_UPLOAD_BYTES // (1024 * 1024)} MB.",
         )
 
     if not data:
@@ -138,8 +139,22 @@ async def extract_text(filename: str, data: bytes) -> ExtractionResult:
         )
 
     try:
-        # pypdf and python-docx are synchronous and CPU-bound.
-        text = await asyncio.to_thread(_extract_sync, data, media_type)
+        # pypdf and python-docx are synchronous and CPU-bound, so they run in a
+        # thread. The timeout bounds how long one upload can hold that slot:
+        # without it, a crafted file parked a worker thread for ~108 seconds.
+        text = await asyncio.wait_for(
+            asyncio.to_thread(_extract_sync, data, media_type),
+            timeout=settings.EXTRACTION_TIMEOUT_SECONDS,
+        )
+    except asyncio.TimeoutError:
+        return ExtractionResult(
+            status=ExtractionStatus.failed,
+            error=(
+                "Reading this file took too long. It may be unusually large or "
+                "complex -- try exporting a simpler version."
+            ),
+            detected_type=media_type,
+        )
     except Exception as exc:
         return ExtractionResult(
             status=ExtractionStatus.failed,
@@ -163,6 +178,6 @@ async def extract_text(filename: str, data: bytes) -> ExtractionResult:
 
     return ExtractionResult(
         status=ExtractionStatus.ok,
-        text=text[:MAX_EXTRACTED_CHARS],
+        text=text[: settings.MAX_EXTRACTED_CHARS],
         detected_type=media_type,
     )
