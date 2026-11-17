@@ -21,6 +21,12 @@ MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 MAX_PDF_PAGES = 50
 MAX_EXTRACTED_CHARS = 50_000
 
+# MAX_UPLOAD_BYTES bounds only the *compressed* size of a .docx. A zip that
+# expands a thousandfold turns a 0.2 MB upload into a 200 MB allocation, so the
+# uncompressed size is bounded too. 80 MB is far above any real essay and far
+# below what would threaten the worker.
+MAX_DOCX_UNCOMPRESSED_BYTES = 80 * 1024 * 1024
+
 PDF_MAGIC = b"%PDF-"
 ZIP_MAGIC = b"PK\x03\x04"
 
@@ -48,11 +54,17 @@ def _detect_type(data: bytes) -> Optional[str]:
         # A .docx is a zip; a zip is not necessarily a .docx.
         try:
             with zipfile.ZipFile(io.BytesIO(data)) as zf:
-                if "word/document.xml" in zf.namelist():
-                    return TYPE_DOCX
+                if "word/document.xml" not in zf.namelist():
+                    return None
+                # Read the declared sizes from the central directory -- this
+                # decompresses nothing -- and refuse a bomb before any parser
+                # allocates for it.
+                declared = sum(info.file_size for info in zf.infolist())
+                if declared > MAX_DOCX_UNCOMPRESSED_BYTES:
+                    return None
+                return TYPE_DOCX
         except zipfile.BadZipFile:
             return None
-        return None
 
     try:
         decoded = data.decode("utf-8")

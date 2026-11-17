@@ -102,3 +102,40 @@ async def test_every_non_ok_status_carries_a_reason():
         result = await extract_text(name, data)
         assert result.status != ExtractionStatus.ok, name
         assert result.error, f"{name} ({result.status}) gave no reason"
+
+
+def _make_docx_bomb(target_uncompressed: int) -> bytes:
+    """A DOCX-shaped zip that decompresses to roughly `target_uncompressed`."""
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
+        zf.writestr("[Content_Types].xml", "<Types/>")
+        zf.writestr(
+            "word/document.xml",
+            b'<?xml version="1.0"?><w:document xmlns:w="x"><w:body><w:p><w:t>'
+            + b"A" * target_uncompressed
+            + b"</w:t></w:p></w:body></w:document>",
+        )
+    return buf.getvalue()
+
+
+async def test_docx_decompression_bomb_is_rejected_before_parsing():
+    """A small zip that expands to hundreds of MB must not be decompressed.
+
+    The 10 MB gate only bounds the compressed bytes, so without a ratio check a
+    0.2 MB upload can force a 200 MB allocation and take the worker down.
+    """
+    data = _make_docx_bomb(200_000_000)
+    assert len(data) < MAX_UPLOAD_BYTES, "bomb must pass the upload-size gate"
+
+    result = await extract_text("bomb.docx", data)
+
+    assert result.status == ExtractionStatus.unsupported
+    assert result.error
+
+
+async def test_an_ordinary_docx_is_not_mistaken_for_a_bomb():
+    result = await extract_text("essay.docx", read_fixture("sample.docx"))
+    assert result.status == ExtractionStatus.ok

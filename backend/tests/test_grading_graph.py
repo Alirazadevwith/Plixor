@@ -193,3 +193,45 @@ async def test_unreadable_upload_is_not_graded_as_a_blank_answer(
     assert resolve_effective_answer(answer) == ""
     assert answer.attachment.extraction_status == ExtractionStatus.no_text
     assert answer.attachment.extraction_error
+
+
+async def test_correct_mcq_option_still_scores_full_marks_despite_an_attachment(
+    db, make_submission, make_question, make_answer
+):
+    """Uploading a document against an MCQ question must not void the choice.
+
+    The uploader is only rendered for subjective questions, but the API accepts
+    an attachment on any question. If the extracted text displaced the selected
+    option id, exact match would compare prose to a UUID and the student would
+    lose marks for an answer they got right.
+    """
+    from models.enums import ExtractionStatus, QuestionType, SubmissionStatus
+    from models.models import AnswerAttachment
+    from services.ai_service import ai_service
+    from sqlalchemy import select
+    from models.models import MCQResult
+
+    sub = await make_submission(status=SubmissionStatus.submitted)
+    question = await make_question(exam=sub.exam, question_type=QuestionType.mcq, marks=10)
+    correct = next(o for o in question.options if o.is_correct)
+
+    answer = await make_answer(sub, question, selected_option_id=correct.id)
+    db.add(
+        AnswerAttachment(
+            answer_id=answer.id,
+            filename="notes.pdf",
+            content_type="application/pdf",
+            size_bytes=10,
+            content=b"irrelevant",
+            extracted_text="Some unrelated prose the student uploaded.",
+            extraction_status=ExtractionStatus.ok,
+        )
+    )
+    await db.flush()
+
+    await ai_service.evaluate_submission(sub.id, db)
+
+    result = await db.scalar(select(MCQResult).where(MCQResult.question_id == question.id))
+    assert result.is_correct is True
+    await db.refresh(sub)
+    assert sub.total_score == 10

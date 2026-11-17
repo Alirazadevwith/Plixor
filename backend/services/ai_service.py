@@ -119,20 +119,25 @@ class AIService:
 
         for question in questions:
             answer = answers.get(question.id)
-            # An uploaded document is the answer for a subjective question; see
-            # services.answer_resolution for the precedence rules.
-            student_text = resolve_effective_answer(answer)
-            selected_opt = answer.selected_option_id if answer else None
+            is_mcq = question.question_type == QuestionType.mcq
+
+            if is_mcq:
+                # An MCQ is graded on the option the student picked. Typed text
+                # or an uploaded document must never displace it -- exact match
+                # would compare prose against an option UUID and void a correct
+                # answer.
+                selected_opt = answer.selected_option_id if answer else None
+                student_answer = str(selected_opt) if selected_opt else ""
+            else:
+                # An uploaded document is the answer for a subjective question;
+                # see services.answer_resolution for the precedence rules.
+                student_answer = resolve_effective_answer(answer)
 
             inputs = {
-                "request_type": (
-                    "evaluate_mcq"
-                    if question.question_type == QuestionType.mcq
-                    else "evaluate_subjective"
-                ),
+                "request_type": "evaluate_mcq" if is_mcq else "evaluate_subjective",
                 "submission_id": str(submission_id),
                 "question_id": str(question.id),
-                "student_answer": student_text or str(selected_opt or ""),
+                "student_answer": student_answer,
                 "question_text": question.question_text,
                 "model_answer": question.model_answer or "",
                 "total_marks": question.marks,
@@ -151,8 +156,7 @@ class AIService:
 
             total_score += result.get("final_score", 0.0)
 
-            # Manually save results
-            if question.question_type == QuestionType.mcq:
+            if is_mcq:
                 mcq_data = result.get("mcq_result")
                 if mcq_data:
                     mcq_record = MCQResult(
