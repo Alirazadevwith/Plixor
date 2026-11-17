@@ -4,7 +4,11 @@ from pydantic_settings import BaseSettings
 from pydantic import field_validator
 from dotenv import load_dotenv
 
-load_dotenv(override=True)
+# override=False is deliberate: real environment variables must win over the
+# .env file. With override=True a stale or committed .env silently beat the
+# variables the platform injects, so Railway's dashboard settings were ignored.
+# pydantic-settings already reads .env for anything the environment omits.
+load_dotenv(override=False)
 
 
 class Settings(BaseSettings):
@@ -12,7 +16,13 @@ class Settings(BaseSettings):
     SECRET_KEY: str
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    GROQ_API_KEY: str
+
+    # Fill exactly one of these to choose a provider. Both are optional: the
+    # app boots and serves everything except the AI features without either.
+    # If both are filled Gemini wins; AI_PROVIDER overrides (gemini | groq).
+    GROQ_API_KEY: str = ""
+    GEMINI_API_KEY: str = ""
+    AI_PROVIDER: str = ""
     LANGSMITH_API_KEY: str = ""
     LANGSMITH_PROJECT: str = "plixor"
     LANGSMITH_TRACING: bool = False

@@ -4,7 +4,6 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from core.config import settings
 from core.database import AsyncSessionLocal
 from models.models import Submission, Question, StudentAnswer, Evaluation, MCQResult, CriterionScore
 from models.enums import QuestionType, SubmissionStatus
@@ -15,7 +14,7 @@ from schemas.ai_schemas import (
     AIGeneratedRubricCriterion,
     AIGeneratedRubrics,
 )
-from langchain_groq import ChatGroq
+from services.llm_provider import NoProviderConfigured, Purpose, get_chat_model
 
 
 class AIService:
@@ -27,7 +26,10 @@ class AIService:
         num_questions: int,
         marks: float,
     ) -> List[AIGeneratedQuestion]:
-        llm = ChatGroq(groq_api_key=settings.GROQ_API_KEY, model_name="llama-3.3-70b-versatile")
+        try:
+            llm = get_chat_model(Purpose.generation)
+        except NoProviderConfigured as e:
+            raise HTTPException(status_code=503, detail=str(e))
         structured_llm = llm.with_structured_output(AIGeneratedQuestionList)
 
         prompt = (
@@ -41,13 +43,18 @@ class AIService:
         try:
             response = await structured_llm.ainvoke(prompt)
             return response.questions
+        except NoProviderConfigured as e:
+            raise HTTPException(status_code=503, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"AI Service Error: {str(e)}")
 
     async def generate_rubric(
         self, question_text: str, model_answer: str, marks: float
     ) -> List[AIGeneratedRubricCriterion]:
-        llm = ChatGroq(groq_api_key=settings.GROQ_API_KEY, model_name="llama-3.3-70b-versatile")
+        try:
+            llm = get_chat_model(Purpose.generation)
+        except NoProviderConfigured as e:
+            raise HTTPException(status_code=503, detail=str(e))
         structured_llm = llm.with_structured_output(AIGeneratedRubrics)
 
         prompt = (
@@ -61,6 +68,8 @@ class AIService:
         try:
             response = await structured_llm.ainvoke(prompt)
             return response.criteria
+        except NoProviderConfigured as e:
+            raise HTTPException(status_code=503, detail=str(e))
         except Exception as e:
             raise HTTPException(status_code=503, detail=f"AI Service Error: {str(e)}")
 

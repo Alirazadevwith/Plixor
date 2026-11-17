@@ -75,7 +75,7 @@ async def test_mcq_grading_makes_no_llm_call(db, make_question, monkeypatch):
     def explode(*args, **kwargs):
         raise AssertionError("MCQ grading must not call an LLM")
 
-    monkeypatch.setattr(nodes, "ChatGroq", explode, raising=False)
+    monkeypatch.setattr(nodes, "get_chat_model", explode)
 
     q = await make_question(question_type=QuestionType.mcq, marks=10)
     wrong = next(o for o in q.options if not o.is_correct)
@@ -85,7 +85,7 @@ async def test_mcq_grading_makes_no_llm_call(db, make_question, monkeypatch):
 
 
 class _StubStructuredLLM:
-    """Stands in for ChatGroq's structured-output runnable.
+    """Stands in for the provider's structured-output runnable.
 
     Grading a rubric criterion needs an LLM; what is under test here is that
     the uploaded document's text reaches it and that the scores are persisted.
@@ -100,6 +100,8 @@ class _StubStructuredLLM:
 
 
 class _StubLLM:
+    """Stands in for whatever provider get_chat_model would return."""
+
     def __init__(self, *args, **kwargs):
         pass
 
@@ -125,7 +127,7 @@ async def test_subjective_question_grades_from_an_uploaded_document(
     from services.ai_service import ai_service
     from sqlalchemy import select
 
-    monkeypatch.setattr(nodes, "ChatGroq", _StubLLM)
+    monkeypatch.setattr(nodes, "get_chat_model", lambda *a, **k: _StubLLM())
 
     sub = await make_submission(status=SubmissionStatus.submitted)
     question = await make_question(exam=sub.exam, question_type=QuestionType.subjective)
@@ -168,7 +170,7 @@ async def test_unreadable_upload_is_not_graded_as_a_blank_answer(
     from models.models import AnswerAttachment
     from services.answer_resolution import resolve_effective_answer
 
-    monkeypatch.setattr(nodes, "ChatGroq", _StubLLM)
+    monkeypatch.setattr(nodes, "get_chat_model", lambda *a, **k: _StubLLM())
 
     sub = await make_submission(status=SubmissionStatus.submitted)
     question = await make_question(exam=sub.exam, question_type=QuestionType.subjective)

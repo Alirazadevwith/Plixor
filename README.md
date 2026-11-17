@@ -181,8 +181,30 @@ Create a `.env` file in the `backend/` directory:
 ```env
 DATABASE_URL=postgresql+asyncpg://<user>:<password>@<host>/<dbname>
 SECRET_KEY=your-secret-key
-GROQ_API_KEY=your-groq-api-key
+
+# Fill exactly ONE of these. Both are optional.
+GEMINI_API_KEY=            # https://aistudio.google.com/apikey
+GROQ_API_KEY=              # https://console.groq.com/keys
+AI_PROVIDER=               # optional: force "gemini" or "groq"
 ```
+
+### Choosing an AI provider
+
+The provider is whichever key you fill — no code change, no redeploy:
+
+| Key set | Grading model | Generation model |
+|---|---|---|
+| `GEMINI_API_KEY` | `gemini-2.5-pro` | `gemini-2.5-flash` |
+| `GROQ_API_KEY` | `llama-3.3-70b-versatile` | `llama-3.3-70b-versatile` |
+
+Fill both and Gemini wins; `AI_PROVIDER` overrides that. Set neither and the app
+still runs — login, sections, exam building, exam-taking and document upload all
+work; only AI generation and subjective grading are unavailable, and they say so
+rather than failing silently. The active provider is logged at startup.
+
+Note that grading never runs on a smaller model than generation. Earlier versions
+had this inverted: generation used `llama-3.3-70b` while grading — the call that
+assigns a student's marks — ran on `llama-3.1-8b-instant`.
 
 `DATABASE_URL` is used exactly as given. There is no local-SQLite fallback —
 a missing or wrong URL fails loudly at startup rather than quietly writing to a

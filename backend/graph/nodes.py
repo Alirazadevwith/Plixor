@@ -4,10 +4,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.models import MCQOption, RubricCriterion
 from graph.state import EvaluationState
-from core.config import settings
 from services.scoring import keyword_coverage
 from schemas.ai_schemas import AIEvaluationCriterionScore
-from langchain_groq import ChatGroq
+from services.llm_provider import Purpose, get_chat_model
 from langchain_core.runnables import RunnableConfig
 
 
@@ -85,7 +84,8 @@ async def evaluate_criterion_node(state: Dict[str, Any], config: RunnableConfig)
 
     similarity = keyword_coverage(student_answer, criterion["keywords"])
 
-    llm = ChatGroq(groq_api_key=settings.GROQ_API_KEY, model_name="llama-3.1-8b-instant")
+    # Grading, not generation: this call decides the student's marks.
+    llm = get_chat_model(Purpose.grading)
     structured_llm = llm.with_structured_output(AIEvaluationCriterionScore)
 
     prompt = (

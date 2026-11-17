@@ -12,6 +12,11 @@ async def lifespan(app: FastAPI):
     """Schema is owned by Alembic (see Procfile's release command), not by
     create_all -- create_all cannot alter an existing table, so it would
     silently skip every change after the first deploy."""
+    from services.llm_provider import describe_configuration
+
+    # Say which provider is live. Without this, a deployment with no key looks
+    # healthy until the first student submits and grading quietly does nothing.
+    print(describe_configuration(), flush=True)
     yield
     await engine.dispose()
 
