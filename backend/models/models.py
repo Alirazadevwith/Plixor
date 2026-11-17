@@ -264,11 +264,28 @@ class AnswerAttachment(Base):
 
 
 class Evaluation(Base):
+    """One grading pass over a submission.
+
+    `submission_id` is unique: the service also guards against a second pass,
+    but that guard is a read-then-write and two concurrent tasks could both
+    clear it. The constraint is what makes one-evaluation-per-submission hold.
+    """
+
     __tablename__ = "evaluations"
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     submission_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("submissions.id", ondelete="CASCADE"), nullable=False
+        Uuid,
+        ForeignKey("submissions.id", ondelete="CASCADE"),
+        unique=True,
+        nullable=False,
     )
+    # Set when the pipeline could not grade something properly -- a subjective
+    # question with no rubric criteria, say. Surfaces to the teacher instead of
+    # quietly recording a zero.
+    needs_review: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0", nullable=False
+    )
+    review_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     evaluated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

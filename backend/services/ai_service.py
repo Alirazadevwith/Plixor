@@ -1,3 +1,4 @@
+import logging
 import uuid
 from typing import List
 from fastapi import HTTPException
@@ -15,6 +16,8 @@ from schemas.ai_schemas import (
     AIGeneratedRubrics,
 )
 from services.llm_provider import NoProviderConfigured, Purpose, get_chat_model
+
+logger = logging.getLogger(__name__)
 
 
 class AIService:
@@ -74,17 +77,45 @@ class AIService:
             raise HTTPException(status_code=503, detail=f"AI Service Error: {str(e)}")
 
     async def evaluate_submission(self, submission_id: uuid.UUID, db: AsyncSession = None):
+        if db is None:
+            async with AsyncSessionLocal() as own_db:
+                await self._evaluate_guarded(submission_id, own_db)
+            return
+        await self._evaluate_guarded(submission_id, db)
+
+    async def _evaluate_guarded(self, submission_id: uuid.UUID, db: AsyncSession):
+        """Run grading; on failure record it where someone will see it.
+
+        A provider outage used to be swallowed into a print, leaving the
+        submission at `submitted` with no score, nothing shown to the student
+        or teacher, and the only trace in container stdout.
+        """
         try:
-            if db is None:
-                async with AsyncSessionLocal() as db:
-                    await self._do_evaluate(submission_id, db)
-                    await db.commit()
-                return
             await self._do_evaluate(submission_id, db)
-        except Exception as e:
-            print(f"❌ EVALUATION ERROR: {e}")
-            import traceback
-            traceback.print_exc()
+            await db.commit()
+        except Exception:
+            logger.exception("Grading failed for submission %s", submission_id)
+            await db.rollback()
+            # A separate session, because the one above is now in a failed
+            # transaction and -- when the caller supplied it -- is not ours to
+            # drive. The partial grading rolls back; the status must persist.
+            await self._mark_grading_failed(submission_id)
+
+    async def _mark_grading_failed(self, submission_id: uuid.UUID):
+        try:
+            async with AsyncSessionLocal() as db:
+                submission = await db.scalar(
+                    select(Submission).where(Submission.id == submission_id)
+                )
+                if submission and submission.status != SubmissionStatus.evaluated:
+                    submission.status = SubmissionStatus.grading_failed
+                    submission.total_score = None
+                    db.add(submission)
+                    await db.commit()
+        except Exception:
+            logger.exception(
+                "Could not record grading failure for submission %s", submission_id
+            )
 
     async def _do_evaluate(self, submission_id: uuid.UUID, db: AsyncSession):
         sub_result = await db.execute(select(Submission).where(Submission.id == submission_id))
@@ -94,6 +125,8 @@ class AIService:
 
         # Idempotent: a retry, a double submit, or a background task that runs
         # twice must not create a second Evaluation or restate the score.
+        # grading_failed is deliberately not terminal -- a transient provider
+        # outage has to be retryable.
         if submission.status == SubmissionStatus.evaluated:
             return
         existing = await db.execute(
@@ -117,6 +150,7 @@ class AIService:
         from graph.graph import workflow
 
         total_score = 0.0
+        review_notes: list[str] = []
         eval_id = uuid.uuid4()
         evaluation = Evaluation(
             id=eval_id,
@@ -177,6 +211,14 @@ class AIService:
                     )
                     db.add(mcq_record)
             else:
+                if not result.get("criterion_scores"):
+                    # No rubric criteria means nothing was actually assessed.
+                    # Recording a silent 0 would fail the whole class on this
+                    # question with no trace anywhere.
+                    review_notes.append(
+                        f"Question {question.order_index} has no rubric criteria, "
+                        f"so its {question.marks} marks could not be assessed."
+                    )
                 for item in result.get("criterion_scores", []):
                     score_record = CriterionScore(
                         evaluation_id=eval_id,
@@ -190,6 +232,9 @@ class AIService:
             await db.flush()
 
         evaluation.total_score = total_score
+        if review_notes:
+            evaluation.needs_review = True
+            evaluation.review_reason = " ".join(review_notes)
         submission.total_score = total_score
         submission.status = SubmissionStatus.evaluated
 

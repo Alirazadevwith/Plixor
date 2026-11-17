@@ -32,7 +32,10 @@ async def test_submitting_marks_only_that_submission(db, client, make_submission
     )
 
     await db.refresh(sub)
-    assert sub.status == SubmissionStatus.submitted
+    # Background grading may already have advanced this to `evaluated`; what
+    # this test pins is that submitting moved *this* submission out of
+    # in_progress and stamped its submitted_at.
+    assert sub.status in (SubmissionStatus.submitted, SubmissionStatus.evaluated)
     assert sub.submitted_at is not None
 
 

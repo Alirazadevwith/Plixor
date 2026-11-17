@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 from core.database import get_db
 from core.dependencies import (
@@ -27,6 +27,72 @@ from schemas.ai_schemas import QuestionGenerationConfig
 from services.ai_service import ai_service
 
 router = APIRouter()
+
+
+async def validate_exam_is_publishable(exam: Exam, db: AsyncSession) -> None:
+    """Refuse to activate an exam whose answer key cannot grade correctly.
+
+    Grading was simplified to a single exact-match comparison for MCQs, which
+    removed the fallback that used to paper over a mismarked key. Both problems
+    below are silent and terminal once students sit the exam:
+
+      - an MCQ with no correct option flagged fails the entire class on that
+        question, with explanation "Incorrect option." and nothing saying why;
+      - an MCQ with two flagged accepts only the first, so a student who picks
+        the other correct answer scores zero;
+      - a subjective question with no rubric criteria assesses nothing, so its
+        marks are recorded as 0 for everyone.
+    """
+    result = await db.execute(
+        select(Question).where(Question.exam_id == exam.id).order_by(Question.order_index)
+    )
+    questions = result.scalars().all()
+
+    if not questions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This exam has no questions yet.",
+        )
+
+    problems = []
+    for q in questions:
+        label = f"Question {q.order_index}"
+        if q.question_type == QuestionType.mcq:
+            # Counted in SQL: a relationship already loaded on this instance
+            # could be stale, and publishing is exactly when it must not be.
+            total = await db.scalar(
+                select(func.count(MCQOption.id)).where(MCQOption.question_id == q.id)
+            )
+            correct = await db.scalar(
+                select(func.count(MCQOption.id)).where(
+                    MCQOption.question_id == q.id, MCQOption.is_correct.is_(True)
+                )
+            )
+            if (total or 0) < 2:
+                problems.append(f"{label} needs at least two options.")
+            if not correct:
+                problems.append(f"{label} has no option marked correct.")
+            elif correct > 1:
+                problems.append(
+                    f"{label} has {correct} options marked correct; exactly one is required."
+                )
+        else:
+            rubrics = await db.scalar(
+                select(func.count(RubricCriterion.id)).where(
+                    RubricCriterion.question_id == q.id
+                )
+            )
+            if not rubrics:
+                problems.append(
+                    f"{label} is a written question with no rubric criteria, so it "
+                    f"cannot be graded. Add criteria or generate a rubric."
+                )
+
+    if problems:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=" ".join(problems),
+        )
 
 
 @router.get("", response_model=List[ExamResponse])
@@ -410,6 +476,7 @@ async def publish_exam(
     exam: Exam = Depends(get_owned_exam),
     db: AsyncSession = Depends(get_db),
 ):
+    await validate_exam_is_publishable(exam, db)
     exam.status = ExamStatus.active
     db.add(exam)
     await db.flush()

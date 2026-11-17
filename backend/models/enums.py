@@ -31,6 +31,10 @@ class SubmissionStatus(str, Enum):
     in_progress = "in_progress"
     submitted = "submitted"
     evaluated = "evaluated"
+    # Grading raised and the submission has no score. Visible to student and
+    # teacher, and retryable -- previously this left the submission at
+    # `submitted` forever with the error only in container stdout.
+    grading_failed = "grading_failed"
 
 
 class Difficulty(str, Enum):

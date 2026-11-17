@@ -62,10 +62,47 @@ async def engine():
 
 
 @pytest_asyncio.fixture
-async def db(engine) -> AsyncSession:
+async def db(engine, monkeypatch) -> AsyncSession:
     session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+
+    # Code that legitimately opens its own session (ai_service recording a
+    # grading failure outside the caller's failed transaction) must reach the
+    # test database, not the configured DATABASE_URL.
+    import core.database
+    import services.ai_service
+
+    monkeypatch.setattr(core.database, "AsyncSessionLocal", session_factory)
+    monkeypatch.setattr(services.ai_service, "AsyncSessionLocal", session_factory)
+
     async with session_factory() as session:
         yield session
+
+
+@pytest_asyncio.fixture
+async def file_db(tmp_path, monkeypatch) -> AsyncSession:
+    """A file-backed database, for code that opens a second session.
+
+    The default `db` fixture is in-memory SQLite on a StaticPool -- one shared
+    connection -- so a second concurrent session deadlocks with MissingGreenlet.
+    Postgres has no such limit; this fixture restores the production shape for
+    the few tests that need it.
+    """
+    url = f"sqlite+aiosqlite:///{tmp_path}/test.db"
+    eng = create_async_engine(url)
+    async with eng.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    session_factory = async_sessionmaker(eng, class_=AsyncSession, expire_on_commit=False)
+
+    import core.database
+    import services.ai_service
+
+    monkeypatch.setattr(core.database, "AsyncSessionLocal", session_factory)
+    monkeypatch.setattr(services.ai_service, "AsyncSessionLocal", session_factory)
+
+    async with session_factory() as session:
+        yield session
+    await eng.dispose()
 
 
 @pytest_asyncio.fixture
