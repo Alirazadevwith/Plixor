@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useApp } from "../hooks/useApp";
 import api from "../api/api";
+import SubmissionStatusBadge from "../components/SubmissionStatusBadge";
 import {
   ChevronLeft, Check, X, AlertCircle, Award, BookOpen, MessageSquare, FileText, Info, AlertTriangle, ArrowRight, User as UserIcon
 } from "lucide-react";
@@ -293,6 +294,8 @@ const Results = () => {
     const activeSubjEvals = activeQuestion ? evaluation?.criterion_scores?.filter(c => activeQuestion.rubrics?.some(r => r.id === c.criterion_id)) : [];
 
     const isPending = activeSubmissionObj?.status !== "evaluated";
+    const gradingFailed = activeSubmissionObj?.status === "grading_failed";
+    const needsReview = Boolean(evaluation?.needs_review);
 
     return (
       <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -350,7 +353,7 @@ const Results = () => {
                 <span style={{ fontSize: 12, color: "#718096" }}>/ {exam?.total_marks} marks</span>
               </div>
             )}
-            {isPending && (
+            {isPending && !gradingFailed && (
               <span style={{
                 background: "#EBF4FF", color: "#4A90E2", border: "1px solid #BEE3F8",
                 fontSize: 12, fontWeight: 600, padding: "6px 14px", borderRadius: 8
@@ -358,8 +361,41 @@ const Results = () => {
                 Awaiting Evaluation
               </span>
             )}
+            {gradingFailed && <SubmissionStatusBadge status="grading_failed" />}
+            {needsReview && <SubmissionStatusBadge status="evaluated" needsReview />}
           </div>
         </div>
+
+        {/* A grading outage used to be invisible: the submission sat at
+            "submitted" with no score and nothing told anyone. */}
+        {gradingFailed && (
+          <div style={{
+            padding: "14px 18px", background: "#FFF5F5", border: "1px solid #FED7D7",
+            borderRadius: 8, color: "#C53030", fontSize: 13, lineHeight: 1.6,
+            display: "flex", gap: 10, alignItems: "flex-start"
+          }}>
+            <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <strong>Automatic grading could not complete.</strong> The AI provider was
+              unreachable or rejected the request. Nothing has been scored. You can retry by
+              resubmitting the exam for grading, or set the score manually below.
+            </div>
+          </div>
+        )}
+
+        {needsReview && (
+          <div style={{
+            padding: "14px 18px", background: "#FFFAF0", border: "1px solid #FBD38D",
+            borderRadius: 8, color: "#C05621", fontSize: 13, lineHeight: 1.6,
+            display: "flex", gap: 10, alignItems: "flex-start"
+          }}>
+            <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <strong>This result needs your review.</strong>{" "}
+              {evaluation?.review_reason || "Part of this submission could not be assessed automatically."}
+            </div>
+          </div>
+        )}
 
         {/* Loading Spinner for Evaluation */}
         {(submissionObjLoading || evaluationLoading || questionsLoading) ? (
@@ -975,13 +1011,7 @@ const Results = () => {
                         {new Date(sub.submitted_at || sub.started_at).toLocaleDateString()}
                       </td>
                       <td style={{ padding: "14px 18px", borderBottom: "1px solid #E2E8F0" }}>
-                        <span style={{
-                          padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600,
-                          background: isEval ? "#F0FFF4" : "#EBF4FF",
-                          color: isEval ? "#38A169" : "#4A90E2"
-                        }}>
-                          {isEval ? "Evaluated" : "Awaiting evaluation"}
-                        </span>
+                        <SubmissionStatusBadge status={sub.status} />
                       </td>
                       <td style={{ padding: "14px 18px", borderBottom: "1px solid #E2E8F0", fontSize: 14, fontWeight: 700, color: "#1A202C" }}>
                         {sub.total_score !== null ? `${sub.total_score} / ${sub.exam?.total_marks}` : "—"}
@@ -1109,13 +1139,7 @@ const Results = () => {
                         </span>
                       </td>
                       <td style={{ padding: "14px 18px", borderBottom: "1px solid #E2E8F0" }}>
-                        <span style={{
-                          padding: "4px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600,
-                          background: isEval ? "#F0FFF4" : "#EBF4FF",
-                          color: isEval ? "#38A169" : "#4A90E2"
-                        }}>
-                          {isEval ? "Evaluated" : "Submitted"}
-                        </span>
+                        <SubmissionStatusBadge status={sub.status} />
                       </td>
                       <td style={{ padding: "14px 18px", borderBottom: "1px solid #E2E8F0", fontSize: 14, fontWeight: 700, color: "#1A202C" }}>
                         {sub.total_score !== null ? `${sub.total_score} / ${exam?.total_marks}` : "—"}

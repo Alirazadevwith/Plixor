@@ -303,6 +303,8 @@ class EvaluationResponse(SafeResponseModel):
     submission_id: uuid.UUID
     evaluated_at: datetime
     total_score: float
+    needs_review: bool = False
+    review_reason: Optional[str] = None
     is_overridden: bool
     override_by: Optional[uuid.UUID] = None
     override_reason: Optional[str] = None

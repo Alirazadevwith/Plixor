@@ -210,6 +210,24 @@ assigns a student's marks — ran on `llama-3.1-8b-instant`.
 a missing or wrong URL fails loudly at startup rather than quietly writing to a
 file that disappears on the next deploy.
 
+### Everything else is configuration
+
+No limit or rule is hardcoded. Each of these is a `Settings` field with a
+working default, overridable from the environment:
+
+| Variable | Default | Guards against |
+|---|---|---|
+| `MAX_UPLOAD_BYTES` | 10 MB | Unbounded request bodies |
+| `MAX_DOCX_XML_BYTES` | 8 MB | A `.docx` zip bomb — 8 MB of XML, not 8 MB on the wire |
+| `MAX_PDF_PAGES` | 50 | A PDF with tens of thousands of pages |
+| `MAX_EXTRACTED_CHARS` | 50,000 | Unbounded LLM context and cost |
+| `EXTRACTION_TIMEOUT_SECONDS` | 20 | One upload holding a worker thread |
+| `CHEATING_WARNING_LIMIT` | 2 | — (exam rule) |
+| `PASS_MARK_FRACTION` | 0.5 | — (analytics rule) |
+| `GEMINI_*_MODEL`, `GROQ_*_MODEL` | see table above | A renamed or retired model id |
+
+Only `DATABASE_URL` and `SECRET_KEY` are required; a test asserts that.
+
 ---
 
 ## Database Models

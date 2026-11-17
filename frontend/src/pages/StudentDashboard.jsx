@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import api from "../api/api";
 import { useApp } from "../hooks/useApp";
+import SubmissionStatusBadge from "../components/SubmissionStatusBadge";
 
 const StatCard = ({ label, value, loading, color, icon }) => (
   <div style={{
@@ -229,9 +230,7 @@ const StudentDashboard = () => {
                     <td style={{ padding: "12px", fontSize: 13, fontWeight: 600, color: "#1A202C", borderBottom: "1px solid #E2E8F0" }}>{sub.exam?.title}</td>
                     <td style={{ padding: "12px", fontSize: 13, color: "#4A5568", borderBottom: "1px solid #E2E8F0" }}>{new Date(sub.started_at).toLocaleDateString()}</td>
                     <td style={{ padding: "12px", borderBottom: "1px solid #E2E8F0" }}>
-                      <span style={{ padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600, background: sub.status === "evaluated" ? "#F0FFF4" : "#EBF4FF", color: sub.status === "evaluated" ? "#38A169" : "#4A90E2" }}>
-                        {sub.status === "evaluated" ? "Evaluated" : "Submitted"}
-                      </span>
+                      <SubmissionStatusBadge status={sub.status} />
                     </td>
                     <td style={{ padding: "12px", fontSize: 14, fontWeight: 700, color: "#1A202C", borderBottom: "1px solid #E2E8F0" }}>
                       {sub.total_score !== null ? `${sub.total_score} / ${sub.exam?.total_marks}` : "—"}
