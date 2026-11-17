@@ -1,6 +1,10 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../api/api";
+import {
+  FileText, Zap, Brain, Loader2, ClipboardList, Sparkles,
+  Trash2, CheckCircle2, Circle, Plus,
+} from "lucide-react";
 
 const DIFFICULTY_META = {
   easy:   { label: "Easy",   color: "#38A169", bg: "#F0FFF4" },
@@ -155,7 +159,7 @@ const ExamBuilder = ({ exam }) => {
               background: "#EBF4FF", display: "flex", alignItems: "center", justifyContent: "center",
               fontSize: 18,
             }}>
-              📝
+              <FileText size={20} color="#4A90E2" strokeWidth={2} />
             </div>
             <div>
               <div style={{ fontSize: 15, fontWeight: 700, color: "#1A202C" }}>Question Bank</div>
@@ -175,7 +179,7 @@ const ExamBuilder = ({ exam }) => {
               transition: "all 0.2s",
             }}
           >
-            ⚡ AI Generate
+            <Zap size={14} /> AI Generate
           </button>
         </div>
 
@@ -186,7 +190,7 @@ const ExamBuilder = ({ exam }) => {
             borderLeft: "3px solid #4A90E2",
           }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
-              <span style={{ fontSize: 16 }}>🧠</span>
+              <Brain size={16} color="#8B5CF6" />
               <span style={{ fontSize: 14, fontWeight: 600, color: "#1A202C" }}>AI Question Generation</span>
             </div>
             <form onSubmit={handleAiGenerateSubmit} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -235,7 +239,11 @@ const ExamBuilder = ({ exam }) => {
                   color: "#FFFFFF", fontSize: 13, fontWeight: 700,
                   cursor: generateAiQuestionsMutation.isPending ? "not-allowed" : "pointer",
                 }}>
-                {generateAiQuestionsMutation.isPending ? "⏳ Generating…" : "⚡ Generate & Append"}
+                {generateAiQuestionsMutation.isPending ? (
+                  <><Loader2 size={14} className="spin" /> Generating…</>
+                ) : (
+                  <><Zap size={14} /> Generate & Append</>
+                )}
               </button>
             </form>
           </div>
@@ -250,7 +258,7 @@ const ExamBuilder = ({ exam }) => {
             background: "#FFFFFF", border: "1px dashed #E2E8F0", borderRadius: 8,
             padding: "48px 24px", textAlign: "center",
           }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
+            <ClipboardList size={32} color="#CBD5E0" strokeWidth={1.5} style={{ margin: "0 auto 8px", display: "block" }} />
             <div style={{ fontSize: 14, color: "#718096" }}>No questions yet</div>
             <div style={{ fontSize: 12, color: "#A0AEC0", marginTop: 4 }}>
               Use the form on the right or AI generation above
@@ -323,7 +331,7 @@ const ExamBuilder = ({ exam }) => {
                             color: "#38A169", cursor: "pointer", fontSize: 11, fontWeight: 600,
                           }}
                         >
-                          ✨ Rubric
+                          <Sparkles size={13} /> Rubric
                         </button>
                       )}
                       <button
@@ -335,7 +343,7 @@ const ExamBuilder = ({ exam }) => {
                         onMouseEnter={(e) => e.target.style.color = "#E53E3E"}
                         onMouseLeave={(e) => e.target.style.color = "#A0AEC0"}
                       >
-                        🗑️
+                        <Trash2 size={15} />
                       </button>
                       <span style={{
                         fontSize: 14, color: "#A0AEC0", marginTop: 4,
@@ -362,7 +370,7 @@ const ExamBuilder = ({ exam }) => {
                               background: opt.is_correct ? "#F0FFF4" : "#F7F8FC",
                               border: `1px solid ${opt.is_correct ? "#C6F6D5" : "#E2E8F0"}`,
                             }}>
-                              <span style={{ fontSize: 14 }}>{opt.is_correct ? "✅" : "⚪"}</span>
+                              {opt.is_correct ? <CheckCircle2 size={15} color="#38A169" /> : <Circle size={15} color="#CBD5E0" />}
                               <span style={{ fontSize: 12, color: opt.is_correct ? "#38A169" : "#4A5568" }}>
                                 {opt.option_text}
                               </span>
@@ -416,7 +424,7 @@ const ExamBuilder = ({ exam }) => {
         boxShadow: "0 1px 3px rgba(0,0,0,0.08)", padding: 20, position: "sticky", top: 24,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 18 }}>
-          <span style={{ fontSize: 16 }}>➕</span>
+          <Plus size={16} strokeWidth={2.5} />
           <span style={{ fontSize: 14, fontWeight: 700, color: "#1A202C" }}>Create Question</span>
         </div>
 

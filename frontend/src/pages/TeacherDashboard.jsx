@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import api from "../api/api";
+import { FileText, Users, ClipboardList, CheckCircle2, TrendingUp } from "lucide-react";
 import { useApp } from "../hooks/useApp";
 
-const StatCard = ({ label, value, loading, color, icon }) => (
+const StatCard = ({ label, value, loading, color, Icon }) => (
   <div style={{
     background: "#FFFFFF",
     border: "1px solid #E2E8F0",
@@ -41,7 +42,7 @@ const StatCard = ({ label, value, loading, color, icon }) => (
       justifyContent: "center",
       fontSize: 22,
     }}>
-      {icon}
+      <Icon size={22} strokeWidth={2} color={color} />
     </div>
   </div>
 );
@@ -102,10 +103,10 @@ const TeacherDashboard = () => {
         gap: 20,
         marginBottom: 28,
       }}>
-        <StatCard label="Total Exams" value={exams.length} loading={examsLoading} color="#4A90E2" icon="📝" />
-        <StatCard label="Active Sections" value={sections.length} loading={sectionsLoading} color="#8B5CF6" icon="👥" />
-        <StatCard label="Pending Drafts" value={pendingCount} loading={examsLoading} color="#D69E2E" icon="📋" />
-        <StatCard label="Evaluated" value={evaluatedCount} loading={examsLoading} color="#38A169" icon="✅" />
+        <StatCard label="Total Exams" value={exams.length} loading={examsLoading} color="#4A90E2" Icon={FileText} />
+        <StatCard label="Active Sections" value={sections.length} loading={sectionsLoading} color="#8B5CF6" Icon={Users} />
+        <StatCard label="Pending Drafts" value={pendingCount} loading={examsLoading} color="#D69E2E" Icon={ClipboardList} />
+        <StatCard label="Evaluated" value={evaluatedCount} loading={examsLoading} color="#38A169" Icon={CheckCircle2} />
       </div>
 
       <div style={{
@@ -196,9 +197,9 @@ const TeacherDashboard = () => {
             Quick Actions
           </h3>
           {[
-            { label: "Create New Exam", icon: "📝", path: "/exams" },
-            { label: "Add Section", icon: "👥", path: "/sections" },
-            { label: "View Results", icon: "📈", path: "/results" },
+            { label: "Create New Exam", Icon: FileText, path: "/exams" },
+            { label: "Add Section", Icon: Users, path: "/sections" },
+            { label: "View Results", Icon: TrendingUp, path: "/results" },
           ].map((action) => (
             <Link
               key={action.label}
@@ -225,7 +226,7 @@ const TeacherDashboard = () => {
                 e.currentTarget.style.background = "transparent";
               }}
             >
-              <span style={{ fontSize: 18 }}>{action.icon}</span>
+              <action.Icon size={18} strokeWidth={2} />
               {action.label}
             </Link>
           ))}

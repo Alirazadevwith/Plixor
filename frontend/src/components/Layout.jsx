@@ -1,4 +1,12 @@
 import { Link, Outlet, useNavigate, useLocation } from "react-router-dom";
+import {
+  LayoutDashboard,
+  Users,
+  FileText,
+  TrendingUp,
+  ClipboardList,
+  LogOut,
+} from "lucide-react";
 import { useApp } from "../hooks/useApp";
 
 const Layout = () => {
@@ -14,16 +22,16 @@ const Layout = () => {
   const isActive = (path) => location.pathname === path || location.pathname.startsWith(path + "/");
 
   const teacherMenu = [
-    { path: "/dashboard", label: "Dashboard", icon: "📊" },
-    { path: "/sections", label: "Sections", icon: "👥" },
-    { path: "/exams", label: "Exams", icon: "📝" },
-    { path: "/results", label: "Results", icon: "📈" },
+    { path: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
+    { path: "/sections", label: "Sections", Icon: Users },
+    { path: "/exams", label: "Exams", Icon: FileText },
+    { path: "/results", label: "Results", Icon: TrendingUp },
   ];
 
   const studentMenu = [
-    { path: "/dashboard", label: "Dashboard", icon: "📊" },
-    { path: "/exams", label: "My Exams", icon: "📋" },
-    { path: "/results", label: "My Results", icon: "📈" },
+    { path: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
+    { path: "/exams", label: "My Exams", Icon: ClipboardList },
+    { path: "/results", label: "My Results", Icon: TrendingUp },
   ];
 
   const menuItems = isTeacher ? teacherMenu : studentMenu;
@@ -93,7 +101,7 @@ const Layout = () => {
                   }
                 }}
               >
-                <span style={{ fontSize: 18, lineHeight: 1 }}>{item.icon}</span>
+                <item.Icon size={18} strokeWidth={2} style={{ flexShrink: 0 }} />
                 <span>{item.label}</span>
               </Link>
             );
@@ -175,9 +183,7 @@ const Layout = () => {
               e.currentTarget.style.color = "#A8B8C8";
             }}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
-            </svg>
+            <LogOut size={16} strokeWidth={2} />
             Sign Out
           </button>
         </div>

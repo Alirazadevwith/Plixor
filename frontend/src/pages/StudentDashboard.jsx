@@ -3,8 +3,9 @@ import { Link } from "react-router-dom";
 import api from "../api/api";
 import { useApp } from "../hooks/useApp";
 import SubmissionStatusBadge from "../components/SubmissionStatusBadge";
+import { ClipboardList, Trophy, Clock, BarChart3 } from "lucide-react";
 
-const StatCard = ({ label, value, loading, color, icon }) => (
+const StatCard = ({ label, value, loading, color, Icon }) => (
   <div style={{
     background: "#FFFFFF",
     border: "1px solid #E2E8F0",
@@ -42,7 +43,7 @@ const StatCard = ({ label, value, loading, color, icon }) => (
       justifyContent: "center",
       fontSize: 22,
     }}>
-      {icon}
+      <Icon size={22} strokeWidth={2} color={color} />
     </div>
   </div>
 );
@@ -85,14 +86,14 @@ const StudentDashboard = () => {
           value={studentAvailableExams.length}
           loading={studentAvailableLoading}
           color="#4A90E2"
-          icon="📋"
+          Icon={ClipboardList}
         />
         <StatCard
           label="Completed Exams"
           value={mySubmissions.filter((s) => s.status === "evaluated").length}
           loading={mySubmissionsLoading}
           color="#38A169"
-          icon="🏆"
+          Icon={Trophy}
         />
       </div>
 
@@ -161,8 +162,8 @@ const StudentDashboard = () => {
                   color: "#718096",
                   marginBottom: 16,
                 }}>
-                  <span>⏱ {exam.duration_minutes} mins</span>
-                  <span>📊 {exam.total_marks} marks</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Clock size={13} /> {exam.duration_minutes} mins</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><BarChart3 size={13} /> {exam.total_marks} marks</span>
                 </div>
                 <Link
                   to={`/exam/${exam.id}`}

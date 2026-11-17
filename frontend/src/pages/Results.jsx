@@ -5,7 +5,7 @@ import { useApp } from "../hooks/useApp";
 import api from "../api/api";
 import SubmissionStatusBadge from "../components/SubmissionStatusBadge";
 import {
-  ChevronLeft, Check, X, AlertCircle, Award, BookOpen, MessageSquare, FileText, Info, AlertTriangle, ArrowRight, User as UserIcon
+  ChevronLeft, Check, X, AlertCircle, Award, BookOpen, MessageSquare, FileText, Info, AlertTriangle, ArrowRight, Clock, User as UserIcon
 } from "lucide-react";
 
 const inputStyle = {
@@ -412,7 +412,7 @@ const Results = () => {
             textAlign: "center",
             boxShadow: "0 4px 6px rgba(0,0,0,0.05)"
           }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>⏳</div>
+            <Clock size={48} color="#A0AEC0" strokeWidth={1.5} style={{ margin: "0 auto 16px", display: "block" }} />
             <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1A202C", marginBottom: 8 }}>Awaiting Evaluation</h2>
             <p style={{ fontSize: 14, color: "#718096", maxWidth: 460, margin: "0 auto 24px", lineHeight: 1.6 }}>
               This submission is currently in queue to be graded by the AI engine. Rubrics and point allocations will be displayed as soon as evaluation is completed.

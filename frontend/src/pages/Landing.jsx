@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { GraduationCap, Zap, Target, FileText } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 const Landing = () => {
@@ -234,7 +235,9 @@ const Landing = () => {
         <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 24px", display: "flex", alignItems: "center", gap: 60, flexWrap: "wrap" }}>
           <div style={{ flex: "1 1 480px", minWidth: 300 }}>
             <div style={{
-              display: "inline-block",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
               padding: "6px 16px",
               background: "#EBF4FF",
               borderRadius: 20,
@@ -242,8 +245,10 @@ const Landing = () => {
               fontWeight: 600,
               color: "#4A90E2",
               marginBottom: 24,
+              whiteSpace: "nowrap",
             }}>
-              🎓 Trusted by Universities
+              <GraduationCap size={15} strokeWidth={2} />
+              <span>Trusted by Universities</span>
             </div>
             <h1 style={{
               fontSize: "clamp(32px, 5vw, 52px)",
@@ -377,12 +382,12 @@ const Landing = () => {
           flexWrap: "wrap",
         }}>
           {[
-            { value: "10x", label: "Faster Grading", icon: "⚡" },
-            { value: "95%", label: "Evaluation Accuracy", icon: "🎯" },
-            { value: "500+", label: "Exams Evaluated", icon: "📝" },
+            { value: "10x", label: "Faster Grading", Icon: Zap },
+            { value: "95%", label: "Evaluation Accuracy", Icon: Target },
+            { value: "500+", label: "Exams Evaluated", Icon: FileText },
           ].map((stat) => (
             <div key={stat.label} style={{ textAlign: "center", minWidth: 180 }}>
-              <div style={{ fontSize: 14, marginBottom: 8 }}>{stat.icon}</div>
+              <div style={{ marginBottom: 8, display: "flex", justifyContent: "center" }}><stat.Icon size={18} strokeWidth={2} color="#4A90E2" /></div>
               <div style={{ fontSize: 32, fontWeight: 700, color: "#1A202C" }}>{stat.value}</div>
               <div style={{ fontSize: 14, color: "#718096", marginTop: 4 }}>{stat.label}</div>
             </div>

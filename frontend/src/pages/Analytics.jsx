@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import api from "../api/api";
+import { TrendingUp, CheckCircle2, AlertTriangle, Users, FileText, FileSpreadsheet } from "lucide-react";
 
-const StatCard = ({ label, value, color, icon }) => (
+const StatCard = ({ label, value, color, Icon }) => (
   <div style={{
     background: "#FFFFFF", border: "1px solid #E2E8F0", borderRadius: 8,
     boxShadow: "0 1px 3px rgba(0,0,0,0.08)", padding: "20px 24px",
@@ -19,7 +20,7 @@ const StatCard = ({ label, value, color, icon }) => (
       width: 48, height: 48, borderRadius: 10, background: color + "15",
       display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22,
     }}>
-      {icon}
+      <Icon size={22} strokeWidth={2} color={color} />
     </div>
   </div>
 );
@@ -82,7 +83,7 @@ const Analytics = () => {
             onMouseEnter={(e) => e.target.style.borderColor = "#4A90E2"}
             onMouseLeave={(e) => e.target.style.borderColor = "#E2E8F0"}
           >
-            📄 Export CSV
+            <FileText size={15} /> Export CSV
           </button>
           <button
             onClick={() => handleExport("excel")}
@@ -95,7 +96,7 @@ const Analytics = () => {
             onMouseEnter={(e) => e.target.style.background = "#2C5F8A"}
             onMouseLeave={(e) => e.target.style.background = "#4A90E2"}
           >
-            📊 Export Excel
+            <FileSpreadsheet size={15} /> Export Excel
           </button>
         </div>
       </div>
@@ -106,10 +107,10 @@ const Analytics = () => {
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 20, marginBottom: 28 }}>
-          <StatCard label="Average Score" value={summary?.average_score.toFixed(1)} color="#4A90E2" icon="📈" />
-          <StatCard label="Pass Rate" value={`${summary?.pass_rate.toFixed(1)}%`} color="#38A169" icon="✅" />
-          <StatCard label="Suspicious Logs" value={summary?.cheating_incidents} color="#E53E3E" icon="⚠️" />
-          <StatCard label="Total Attempts" value={summary?.total_submissions} color="#8B5CF6" icon="👥" />
+          <StatCard label="Average Score" value={summary?.average_score.toFixed(1)} color="#4A90E2" Icon={TrendingUp} />
+          <StatCard label="Pass Rate" value={`${summary?.pass_rate.toFixed(1)}%`} color="#38A169" Icon={CheckCircle2} />
+          <StatCard label="Suspicious Logs" value={summary?.cheating_incidents} color="#E53E3E" Icon={AlertTriangle} />
+          <StatCard label="Total Attempts" value={summary?.total_submissions} color="#8B5CF6" Icon={Users} />
         </div>
       )}
 

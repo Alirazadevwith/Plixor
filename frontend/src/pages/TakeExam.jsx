@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import api from "../api/api";
 import AnswerAttachment from "../components/AnswerAttachment";
+import { AlertTriangle, ShieldCheck, CheckCircle2, PartyPopper } from "lucide-react";
 
 const TakeExam = () => {
   const { id: examId } = useParams();
@@ -273,7 +274,7 @@ const TakeExam = () => {
         fontFamily: "'Inter', sans-serif",
         textAlign: "center"
       }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>⚠️</div>
+        <AlertTriangle size={48} color="#E53E3E" strokeWidth={1.75} style={{ marginBottom: 16 }} />
         <h2 style={{ fontSize: 20, fontWeight: 700, color: "#E53E3E", marginBottom: 12 }}>Exam Terminated</h2>
         <p style={{ fontSize: 14, color: "#718096", maxWidth: 440, lineHeight: 1.6 }}>
           Exam auto-submitted due to violations. Redirecting to dashboard...
@@ -308,7 +309,7 @@ const TakeExam = () => {
             background: "#EBF4FF", display: "flex", alignItems: "center", justifyContent: "center",
             margin: "0 auto 24px", fontSize: 28,
           }}>
-            🛡️
+            <ShieldCheck size={30} color="#4A90E2" strokeWidth={1.75} />
           </div>
           <h1 style={{ fontSize: 24, fontWeight: 700, color: "#1A202C", marginBottom: 8 }}>
             {exam?.title}
@@ -342,7 +343,7 @@ const TakeExam = () => {
             marginBottom: 24,
           }}>
             <div style={{ fontSize: 14, fontWeight: 600, color: "#E53E3E", marginBottom: 10 }}>
-              ⚠️ Academic Integrity Rules
+              <AlertTriangle size={15} style={{ verticalAlign: "-2px", marginRight: 6 }} />Academic Integrity Rules
             </div>
             <ul style={{ listStyleType: "disc", paddingLeft: 20, display: "flex", flexDirection: "column", gap: 6 }}>
               {[
@@ -431,7 +432,7 @@ const TakeExam = () => {
               background: "#FFF5F5", border: "1px solid #FED7D7",
               fontSize: 12, fontWeight: 600, color: "#E53E3E",
             }}>
-              ⚠️ {warnings}/2 Warnings
+              <AlertTriangle size={13} /> {warnings}/2 Warnings
             </div>
           )}
           <div style={{
@@ -605,7 +606,7 @@ const TakeExam = () => {
                 onMouseEnter={(e) => e.target.style.background = "#2F855A"}
                 onMouseLeave={(e) => e.target.style.background = "#38A169"}
               >
-                ✅ Submit Exam
+                <CheckCircle2 size={15} /> Submit Exam
               </button>
             )}
           </div>
@@ -666,7 +667,7 @@ const TakeExam = () => {
             maxWidth: 420, width: "90%", textAlign: "center",
             boxShadow: "0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04)"
           }}>
-            <div style={{ fontSize: 48, marginBottom: 16 }}>🎉</div>
+            <PartyPopper size={48} color="#38A169" strokeWidth={1.75} style={{ margin: "0 auto 16px" }} />
             <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1A202C", marginBottom: 12 }}>Submission Successful!</h2>
             <p style={{ fontSize: 14, color: "#718096", marginBottom: 24, lineHeight: 1.5 }}>
               Your exam has been submitted successfully.

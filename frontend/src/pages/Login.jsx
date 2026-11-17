@@ -4,6 +4,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as zod from "zod";
 import { useApp } from "../hooks/useApp";
+import { Zap, ShieldCheck, BarChart3 } from "lucide-react";
 
 const loginSchema = zod.object({
   email: zod.string().email("Invalid email address"),
@@ -136,9 +137,9 @@ const Login = () => {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {[
-              { icon: "⚡", text: "AI evaluates subjective answers with rubric-based criterion scoring" },
-              { icon: "🛡️", text: "Proctored exams with fullscreen lock and tab monitoring" },
-              { icon: "📊", text: "Detailed analytics with score distribution and pass rates" },
+              { Icon: Zap, text: "AI evaluates subjective answers with rubric-based criterion scoring" },
+              { Icon: ShieldCheck, text: "Proctored exams with fullscreen lock and tab monitoring" },
+              { Icon: BarChart3, text: "Detailed analytics with score distribution and pass rates" },
             ].map((item) => (
               <div key={item.text} style={{ display: "flex", alignItems: "flex-start", gap: 14 }}>
                 <span style={{
@@ -151,7 +152,7 @@ const Login = () => {
                   alignItems: "center",
                   justifyContent: "center",
                 }}>
-                  {item.icon}
+                  <item.Icon size={18} strokeWidth={2} color="#4A90E2" />
                 </span>
                 <span style={{ fontSize: 14, color: "#A8B8C8", lineHeight: 1.6, paddingTop: 2 }}>
                   {item.text}

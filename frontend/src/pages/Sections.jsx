@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "../api/api";
+import { Building2, Calendar, X, FolderOpen, Trash2 } from "lucide-react";
 
 const inputStyle = {
   width: "100%",
@@ -220,8 +221,8 @@ const Sections = () => {
                   </span>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 13, color: "#4A5568" }}>
-                  <span>🏛️ {sec.department}</span>
-                  <span>📅 {sec.semester}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Building2 size={13} /> {sec.department}</span>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Calendar size={13} /> {sec.semester}</span>
                 </div>
               </div>
 
@@ -310,7 +311,7 @@ const Sections = () => {
                 onClick={() => setShowCreateModal(false)}
                 style={{ background: "none", border: "none", fontSize: 20, color: "#718096", cursor: "pointer" }}
               >
-                ✕
+                <X size={18} />
               </button>
             </div>
             <form onSubmit={handleCreateSection}>
@@ -438,7 +439,7 @@ const Sections = () => {
                   onClick={() => { setShowStudentsModal(null); setShowAddStudent(false); setImportStatus(""); }}
                   style={{ background: "none", border: "none", fontSize: 20, color: "#718096", cursor: "pointer" }}
                 >
-                  ✕
+                  <X size={18} />
                 </button>
               </div>
             </div>
@@ -497,7 +498,7 @@ const Sections = () => {
                     cursor: "pointer",
                     transition: "border-color 0.2s",
                   }}>
-                    📁 {csvFile ? csvFile.name : "Import CSV"}
+                    <FolderOpen size={15} /> {csvFile ? csvFile.name : "Import CSV"}
                     <input
                       type="file"
                       accept=".csv"
@@ -588,7 +589,7 @@ const Sections = () => {
                             onMouseEnter={(e) => e.target.style.color = "#E53E3E"}
                             onMouseLeave={(e) => e.target.style.color = "#718096"}
                           >
-                            🗑️
+                            <Trash2 size={15} />
                           </button>
                         </td>
                       </tr>

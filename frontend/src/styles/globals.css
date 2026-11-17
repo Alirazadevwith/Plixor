@@ -142,3 +142,8 @@ a {
   animation: shimmer 1.5s infinite;
   border-radius: 4px;
 }
+
+/* Continuous rotation for lucide Loader2 icons. */
+.spin {
+  animation: spin 0.9s linear infinite;
+}

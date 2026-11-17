@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useApp } from "../hooks/useApp";
 import api from "../api/api";
 import ExamBuilder from "../components/ExamBuilder";
+import { Pencil, Rocket, BarChart3, TrendingUp, Trash2, X, Plus, AlertTriangle } from "lucide-react";
 
 const inputStyle = {
   width: "100%",
@@ -37,6 +38,7 @@ const statusMap = {
 const Exams = () => {
   const queryClient = useQueryClient();
   const { isTeacher, isStudent } = useApp();
+  const [publishError, setPublishError] = useState("");
   const [selectedExamId, setSelectedExamId] = useState(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newExam, setNewExam] = useState({
@@ -93,7 +95,19 @@ const Exams = () => {
       const res = await api.post(`/exams/${id}/publish`);
       return res.data;
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["exams"] }),
+    onSuccess: () => {
+      setPublishError("");
+      queryClient.invalidateQueries({ queryKey: ["exams"] });
+    },
+    // Publishing is refused when the answer key cannot grade correctly -- an
+    // MCQ with no correct option, a written question with no rubric. The
+    // server explains exactly what to fix, so show it rather than appearing
+    // to do nothing.
+    onError: (err) =>
+      setPublishError(
+        err.response?.data?.detail ||
+          "Could not publish this exam. Please try again."
+      ),
   });
 
   const handleCreateExam = (e) => {
@@ -151,6 +165,27 @@ const Exams = () => {
           </button>
         )}
       </div>
+
+      {publishError && (
+        <div style={{
+        margin: "0 0 20px", padding: "14px 18px", background: "#FFF5F5",
+        border: "1px solid #FED7D7", borderRadius: 8, color: "#C53030",
+        fontSize: 13, lineHeight: 1.6, display: "flex", gap: 10,
+        alignItems: "flex-start", justifyContent: "space-between",
+        }}>
+        <span style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+          <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 2 }} />
+          <span><strong>This exam can't be published yet.</strong> {publishError}</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setPublishError("")}
+          style={{ border: "none", background: "transparent", color: "#C53030", cursor: "pointer", flexShrink: 0 }}
+        >
+          <X size={16} />
+        </button>
+        </div>
+      )}
 
       {examsLoading ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 20 }}>
@@ -216,7 +251,7 @@ const Exams = () => {
                             onMouseEnter={(e) => e.target.style.background = "#EBF4FF"}
                             onMouseLeave={(e) => e.target.style.background = "transparent"}
                           >
-                            ✏️ Build Questions
+                            <Pencil size={14} /> Build Questions
                           </button>
                           <button
                             onClick={() => publishExamMutation.mutate(exam.id)}
@@ -228,7 +263,7 @@ const Exams = () => {
                             onMouseEnter={(e) => e.target.style.background = "#2F855A"}
                             onMouseLeave={(e) => e.target.style.background = "#38A169"}
                           >
-                            🚀 Publish
+                            <Rocket size={14} /> Publish
                           </button>
                         </div>
                       )}
@@ -245,7 +280,7 @@ const Exams = () => {
                             onMouseEnter={(e) => e.currentTarget.style.background = "#EBF4FF"}
                             onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                           >
-                            📊 Submissions
+                            <BarChart3 size={14} /> Submissions
                           </Link>
                           <Link
                             to={`/analytics/${exam.id}`}
@@ -257,7 +292,7 @@ const Exams = () => {
                             onMouseEnter={(e) => e.currentTarget.style.background = "#F5F3FF"}
                             onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                           >
-                            📈 Analytics
+                            <TrendingUp size={14} /> Analytics
                           </Link>
                         </div>
                       )}
@@ -273,7 +308,7 @@ const Exams = () => {
                         onMouseEnter={(e) => { e.target.style.borderColor = "#E53E3E"; e.target.style.color = "#E53E3E"; e.target.style.background = "#FFF5F5"; }}
                         onMouseLeave={(e) => { e.target.style.borderColor = "#E2E8F0"; e.target.style.color = "#718096"; e.target.style.background = "transparent"; }}
                       >
-                        🗑️ Delete
+                        <Trash2 size={14} /> Delete
                       </button>
                     </>
                   )}
@@ -338,7 +373,7 @@ const Exams = () => {
               <button
                 onClick={() => setShowCreateModal(false)}
                 style={{ background: "none", border: "none", fontSize: 20, color: "#718096", cursor: "pointer" }}
-              >✕</button>
+              ><X size={18} /></button>
             </div>
             <form onSubmit={handleCreateExam}>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
