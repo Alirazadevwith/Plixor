@@ -57,8 +57,12 @@ MODELS = {
         Purpose.generation: "gemini-2.5-flash",
     },
     Provider.groq: {
-        Purpose.grading: "llama-3.3-70b-versatile",
-        Purpose.generation: "llama-3.3-70b-versatile",
+        # The llama-3.x models the original code named are not served to every
+        # Groq account -- `GET /openai/v1/models` is the source of truth for a
+        # given key. Both of these are verified to support structured output,
+        # which the grading pipeline requires.
+        Purpose.grading: "openai/gpt-oss-120b",
+        Purpose.generation: "openai/gpt-oss-20b",
     },
 }
 

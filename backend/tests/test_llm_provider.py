@@ -73,7 +73,19 @@ def test_every_provider_has_a_model_for_every_purpose(provider, purpose):
     assert model_for(provider, purpose)
 
 
-def test_groq_does_not_grade_with_the_smallest_model():
-    """Grading is the most consequential call in the product; it must not run on
-    a smaller model than question generation does."""
-    assert "8b" not in model_for(Provider.groq, Purpose.grading)
+def test_groq_grades_with_the_larger_model():
+    """Grading is the most consequential call in the product, so it never gets a
+    smaller model than question generation -- which the original code had
+    backwards (generation on 70b, grading on 8b-instant)."""
+    assert model_for(Provider.groq, Purpose.grading) == "openai/gpt-oss-120b"
+    assert model_for(Provider.groq, Purpose.generation) == "openai/gpt-oss-20b"
+
+
+def test_no_model_is_a_speech_or_safety_model():
+    """Groq serves whisper (speech) and prompt-guard (classifier) models that
+    cannot do structured output; picking one would break grading entirely."""
+    for provider in Provider:
+        for purpose in Purpose:
+            model = model_for(provider, purpose)
+            assert "whisper" not in model
+            assert "prompt-guard" not in model
