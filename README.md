@@ -141,11 +141,10 @@ cp .env.example .env
 
 pip install -r requirements.txt
 
-# Schema is managed by Alembic, not create_all.
-# New database:
-alembic upgrade head
-# Database that predates migrations (already has tables): see migrations/README
-#   alembic stamp head
+# Schema is managed by Alembic, not create_all. This inspects the database
+# and either stamps-then-upgrades (if it predates migrations) or just
+# upgrades. Idempotent; pass --dry-run to see what it would do.
+python -m scripts.bootstrap_migrations
 
 uvicorn main:app --reload
 ```
@@ -204,9 +203,10 @@ PLIXOR manages 15 domain models:
 ### Backend — Railway
 
 - Set all environment variables in the Railway project dashboard
-- The `Procfile` runs `alembic upgrade head` as the release command, then starts
-  Uvicorn. A database created before migrations existed needs a one-time
-  `alembic stamp head` first — see `backend/migrations/README`.
+- The `Procfile` release command runs `python -m scripts.bootstrap_migrations`,
+  which brings the database to head from any starting state — including one
+  created by the old `create_all`, which a plain `alembic upgrade` cannot
+  migrate. No manual step is needed.
 - Uploaded documents are stored in Postgres, not on disk: Railway's filesystem is
   ephemeral and would lose them on every deploy.
 
